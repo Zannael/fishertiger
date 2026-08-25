@@ -7,7 +7,9 @@ import { normalizeRules } from "./league-rules.js";
 import { activeNominationRole } from "./auction-nomination.js";
 import {
   auctionStorageKey,
+  draftPlayer,
   emptyAuction,
+  emptyDraft,
   isValidBid,
   legalMaxBid,
   playerIdKey,
@@ -18,8 +20,12 @@ import {
 import {
   apiUrl,
   auctionDatasetPath,
+  deleteProfile,
+  listProfiles,
   loadDatasetUrl,
+  loadProfile,
   rulesFor,
+  saveProfile,
   seasonSimulationPath,
 } from "./profile-client.js";
 import { createRoleValuation, sourceFvm } from "./player-valuation.js";
@@ -36,6 +42,29 @@ const statusClass = (status) =>
   ({ TITOLARE: "good", BALLOTTAGGIO: "caution", RISERVA: "muted" })[status] ||
   "muted";
 
+const fetchDefaultProfile = (apiBase) =>
+  fetch(apiUrl("/api/default-profile", apiBase))
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+
+const PROFILE_STORAGE_KEY = "fanta-profile-id";
+// localStorage is unavailable in private windows and when site data is blocked.
+const readStoredProfileId = () => {
+  try {
+    return localStorage.getItem(PROFILE_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+const writeStoredProfileId = (id) => {
+  try {
+    if (id) localStorage.setItem(PROFILE_STORAGE_KEY, id);
+    else localStorage.removeItem(PROFILE_STORAGE_KEY);
+  } catch {
+    /* ignore: the picker still works for this session */
+  }
+};
+
 const RECOMMENDATION_LABELS = {
   STRONG_BUY: "Compra",
   BID: "Conviene",
@@ -49,6 +78,10 @@ function App() {
   const [season, setSeason] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState("");
+  const [profiles, setProfiles] = useState([]);
+  // Lives in App, not in Auction: leaving the view unmounts Auction and would
+  // otherwise throw away the player being nominated.
+  const [auctionDraft, setAuctionDraft] = useState(emptyDraft());
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
@@ -63,10 +96,27 @@ function App() {
   ]);
   const [historyIndex, setHistoryIndex] = useState(0);
   useEffect(() => {
-    fetch(apiUrl("/api/default-profile", apiBase))
-      .then((response) => (response.ok ? response.json() : null))
-      .then(setProfile)
-      .catch(() => setProfile(null));
+    let cancelled = false;
+    (async () => {
+      let names = [];
+      try {
+        names = await listProfiles({ apiBase });
+      } catch {
+        names = [];
+      }
+      if (cancelled) return;
+      setProfiles(names);
+      const storedId = readStoredProfileId();
+      let next = null;
+      if (storedId && names.includes(storedId)) {
+        next = await loadProfile(storedId, { apiBase }).catch(() => null);
+      }
+      if (!next) next = await fetchDefaultProfile(apiBase);
+      if (!cancelled) setProfile(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [apiBase]);
   useEffect(() => {
     if (!profile) return;
@@ -81,6 +131,7 @@ function App() {
       .then((response) => (response.ok ? response.json() : null))
       .then(setSeason)
       .catch(() => setSeason(null));
+    setAuctionDraft(emptyDraft());
   }, [apiBase, profile]);
   useEffect(() => {
     const initialRoute = { view: "overview", player: null, team: null };
@@ -127,6 +178,25 @@ function App() {
   const updateProfile = async (nextProfile, generate = false) => {
     setProfile(nextProfile);
     setProfileError("");
+    let saveWarning = "";
+    try {
+      await saveProfile(nextProfile, { apiBase });
+      writeStoredProfileId(nextProfile.profile_id);
+      setProfiles((current) =>
+        current.includes(nextProfile.profile_id)
+          ? current
+          : [...current, nextProfile.profile_id].sort(),
+      );
+    } catch (error) {
+      saveWarning = `Profilo non salvato su disco: ${
+        error instanceof Error ? error.message : "errore sconosciuto"
+      }.`;
+      // A failed save must not block a generation the user already asked for.
+      if (!generate) {
+        setProfileError(saveWarning);
+        throw new Error(saveWarning);
+      }
+    }
     if (!generate) return;
     try {
       const response = await fetch(`${apiBase}/api/generate`, {
@@ -147,6 +217,7 @@ function App() {
       );
       setSeason(null);
       navigate("overview");
+      if (saveWarning) setProfileError(saveWarning);
     } catch (error) {
       setProfileError(
         error instanceof Error
@@ -156,6 +227,76 @@ function App() {
       throw error;
     }
   };
+  const selectProfile = async (id) => {
+    setProfileError("");
+    if (!id) {
+      writeStoredProfileId("");
+      setProfile(await fetchDefaultProfile(apiBase));
+      return;
+    }
+    try {
+      const next = await loadProfile(id, { apiBase });
+      writeStoredProfileId(id);
+      setProfile(next);
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Impossibile caricare il profilo salvato.",
+      );
+    }
+  };
+  const removeProfile = async (id) => {
+    if (!id) return;
+    if (
+      !window.confirm(
+        `Rimuovere il profilo "${id}"? I dati gia generati restano su disco.`,
+      )
+    )
+      return;
+    setProfileError("");
+    try {
+      await deleteProfile(id, { apiBase });
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Impossibile rimuovere il profilo.",
+      );
+      return;
+    }
+    const remaining = profiles.filter((name) => name !== id);
+    setProfiles(remaining);
+    if (readStoredProfileId() === id) writeStoredProfileId("");
+    // Only fall back when the deleted profile was the one on screen.
+    if (profile?.profile_id === id)
+      setProfile(await fetchDefaultProfile(apiBase));
+  };
+  const profilePicker = (
+    <label className="profile-picker">
+      <span>Profilo</span>
+      <select
+        value={profiles.includes(profile?.profile_id) ? profile.profile_id : ""}
+        onChange={(event) => selectProfile(event.target.value)}
+      >
+        <option value="">Profilo predefinito</option>
+        {profiles.map((id) => (
+          <option key={id} value={id}>
+            {id}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="profile-remove"
+        onClick={() => removeProfile(profile?.profile_id)}
+        disabled={!profiles.includes(profile?.profile_id)}
+        title="Rimuovi il profilo selezionato"
+      >
+        Rimuovi
+      </button>
+    </label>
+  );
   const regenerateData = async () => {
     if (!profile || isGenerating) return;
     setIsGenerating(true);
@@ -209,6 +350,9 @@ function App() {
             <h1>Genera il tuo dataset</h1>
             <p>Carica il calendario della tua lega nelle Impostazioni e genera i dati per iniziare.</p>
           </div>
+          {profiles.length > 0 && (
+            <div className="profile-picker-row">{profilePicker}</div>
+          )}
           <LeagueSettings
             initialProfile={profile}
             leagueCalendar={null}
@@ -259,6 +403,7 @@ function App() {
             </button>
           ))}
         </nav>
+        {profilePicker}
         <div className="data-status">
           <i />
           Dati aggiornati
@@ -319,6 +464,8 @@ function App() {
           openPlayer={openPlayer}
           rules={activeRules}
           profileId={activeProfileId}
+          draft={auctionDraft}
+          setDraft={setAuctionDraft}
         />
       )}
       {view === "settings" && (
@@ -1138,7 +1285,7 @@ function AuctionOverview({ overview }) {
   );
 }
 
-function Auction({ data, openPlayer, rules, profileId }) {
+function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
   const activeRules = normalizeRules(
     rules ?? data.league_rules ?? { startingCredits: 750 },
   );
@@ -1175,10 +1322,18 @@ function Auction({ data, openPlayer, rules, profileId }) {
     return loadAuction();
   });
   const [userTeamIndex, setUserTeamIndex] = useState(defaultUserTeamIndex);
-  const [query, setQuery] = useState("");
-  const [player, setPlayer] = useState(null);
+  const { query, price } = draft;
+  const setQuery = (value) => setDraft((current) => ({ ...current, query: value }));
+  const setPrice = (value) => setDraft((current) => ({ ...current, price: value }));
+  // The draft stores an id, so a regenerated dataset can never leave a stale
+  // player object selected.
+  const player = draftPlayer(draft, data.players);
+  const setPlayer = (candidate) =>
+    setDraft((current) => ({
+      ...current,
+      playerId: candidate ? candidate.id : null,
+    }));
   const [owner, setOwner] = useState(userTeamIndex);
-  const [price, setPrice] = useState("");
   const [advice, setAdvice] = useState(null);
   const [overviewAdvice, setOverviewAdvice] = useState(null);
   const [message, setMessage] = useState(
@@ -1197,14 +1352,21 @@ function Auction({ data, openPlayer, rules, profileId }) {
       ? [{ ...transaction, player: transactionPlayer }]
       : [];
   });
+  const resetSignature = `${storageKey}|${rulesSignature}|${defaultUserTeamIndex}`;
+  const lastResetSignature = useRef(resetSignature);
   useEffect(() => {
     skipPersist.current = true;
     setState(loadAuction());
     setUserTeamIndex(defaultUserTeamIndex);
     setOwner(defaultUserTeamIndex);
-    setPlayer(null);
-    setQuery("");
-    setPrice("");
+    // This effect also runs on every remount, so clear the nomination only when
+    // the profile or the rules actually changed - not when returning to the view.
+    if (lastResetSignature.current !== resetSignature) {
+      setPlayer(null);
+      setQuery("");
+      setPrice("");
+    }
+    lastResetSignature.current = resetSignature;
   }, [storageKey, rulesSignature, defaultUserTeamIndex]);
   useEffect(() => {
     if (skipPersist.current) {

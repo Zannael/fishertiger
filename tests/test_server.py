@@ -127,11 +127,38 @@ class LocalApiServerTests(unittest.TestCase):
         response, payload = self.request("OPTIONS", "/api/generate", headers={"Origin": "http://127.0.0.1:5173"})
         self.assertEqual(response.status, 204)
         self.assertIsNone(payload)
-        self.assertEqual(response.getheader("Access-Control-Allow-Methods"), "GET, PUT, POST, OPTIONS")
+        self.assertEqual(response.getheader("Access-Control-Allow-Methods"), "GET, PUT, POST, DELETE, OPTIONS")
 
         response, payload = self.request("POST", "/api/generate", b'{}', {"Content-Type": "application/json"})
         self.assertEqual(response.status, 400)
         self.assertEqual(payload["error"]["code"], "invalid_profile")
+
+    def test_profiles_can_be_deleted_and_report_missing_names(self):
+        profile = {**self.profile, "profile_id": "throwaway"}
+        response, _ = self.request("PUT", "/api/profiles/throwaway", json.dumps(profile).encode("utf-8"), {"Content-Type": "application/json"})
+        self.assertEqual(response.status, 200)
+
+        response, payload = self.request("GET", "/api/profiles")
+        self.assertIn("throwaway", payload["profiles"])
+
+        response, payload = self.request("DELETE", "/api/profiles/throwaway")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload, {"profile_id": "throwaway", "deleted": True})
+
+        response, payload = self.request("GET", "/api/profiles")
+        self.assertNotIn("throwaway", payload["profiles"])
+
+        response, payload = self.request("DELETE", "/api/profiles/throwaway")
+        self.assertEqual(response.status, 404)
+        self.assertEqual(payload["error"]["code"], "profile_not_found")
+
+        response, payload = self.request("DELETE", "/api/profiles/not%20a%20name")
+        self.assertEqual(response.status, 400)
+        self.assertEqual(payload["error"]["code"], "invalid_profile_name")
+
+        response, payload = self.request("DELETE", "/api/datasets/anything.json")
+        self.assertEqual(response.status, 404)
+        self.assertEqual(payload["error"]["code"], "not_found")
 
     def test_generation_reports_invalid_source_data(self):
         def invalid_generator(profile, datasets_dir):

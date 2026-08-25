@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 import tempfile
+import traceback
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -113,6 +115,13 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         else:
             self._error(HTTPStatus.NOT_FOUND, "not_found", "The requested endpoint does not exist.")
 
+    def do_DELETE(self) -> None:
+        path = self._path()
+        if path.startswith("/api/profiles/"):
+            self._delete_profile(path.removeprefix("/api/profiles/"))
+        else:
+            self._error(HTTPStatus.NOT_FOUND, "not_found", "The requested endpoint does not exist.")
+
     def do_POST(self) -> None:
         if self._path() == "/api/sources/status":
             self._source_status()
@@ -171,7 +180,11 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         try:
             output_dir = self.server.datasets_dir / profile.profile_id / profile.season.season.replace("/", "-")
             result = self.server.simulator(profile, output_dir, iterations, seed)
+        except (FileNotFoundError, ValueError) as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_source_data", str(error))
+            return
         except Exception:
+            traceback.print_exc(file=sys.stderr)
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "simulation_failed", "Simulation failed.")
             return
         self._send_json(HTTPStatus.OK, result)
@@ -361,6 +374,21 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             return None
         return candidate
 
+    def _delete_profile(self, name: str) -> None:
+        """Remove a stored profile; generated datasets are deliberately left in place."""
+        profile_path = self._profile_path(name)
+        if profile_path is None:
+            return
+        try:
+            profile_path.unlink()
+        except FileNotFoundError:
+            self._error(HTTPStatus.NOT_FOUND, "profile_not_found", "The profile does not exist.")
+            return
+        except OSError:
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "storage_error", "The profile could not be deleted.")
+            return
+        self._send_json(HTTPStatus.OK, {"profile_id": name, "deleted": True})
+
     def _profile_path(self, name: str) -> Path | None:
         if not PROFILE_NAME.fullmatch(name):
             self._error(HTTPStatus.BAD_REQUEST, "invalid_profile_name", "Profile names must use letters, numbers, underscores, or hyphens.")
@@ -405,7 +433,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         if origin and VITE_ORIGIN.fullmatch(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

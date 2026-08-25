@@ -165,15 +165,23 @@ def _goals(score: float, league: LeagueConfig) -> int:
     return 0 if score < league.score_threshold else 1 + int((score - league.score_threshold) // league.points_per_virtual_goal)
 
 
+def _require_league_calendar(payload: dict[str, Any]) -> Any:
+    """Season simulation needs fixtures; fail with a readable message when absent."""
+    calendar = payload.get("calendario_lega")
+    if not calendar:
+        raise ValueError("The league calendar is required to simulate a season. Upload calendario_lega and regenerate the dataset.")
+    return calendar
+
+
 def _calendar_teams(payload: dict[str, Any]) -> list[str]:
-    calendar = payload["calendario_lega"]
+    calendar = _require_league_calendar(payload)
     if isinstance(calendar, dict):
         return list(calendar["teams"])
     return sorted({fixture["home_team"] for fixture in calendar} | {fixture["away_team"] for fixture in calendar})
 
 
 def _calendar_matchdays(payload: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
-    calendar = payload["calendario_lega"]
+    calendar = _require_league_calendar(payload)
     if isinstance(calendar, dict):
         return {day["number"]: [{"home_team": fixture["home"], "away_team": fixture["away"], "serie_a_matchday": day["serie_a_matchday"]} for fixture in day["fixtures"]] for day in calendar["matchdays"]}
     fixtures: dict[int, list[dict[str, Any]]] = defaultdict(list)
