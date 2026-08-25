@@ -12,12 +12,12 @@ from .simulation import make_sample_rosters, simulate_season
 def run_simulation(output_dir: Path, *, iterations: int = 1000, seed: int = 202627, league: LeagueConfig | None = None) -> dict:
     """Simulate the current dataset and replace its previous season report."""
     league = league or LeagueConfig()
-    payload = json.loads((output_dir / "auction_data.json").read_text())
+    payload = json.loads((output_dir / "auction_data.json").read_text(encoding="utf-8"))
     rosters = make_sample_rosters(payload, league)
     result = simulate_season(payload, rosters, iterations=iterations, seed=seed, league=league)
     output = {"iterations": result.iterations, "teams": result.teams, "scenarios": result.scenarios, "diagnostics": result.diagnostics, "rosters": rosters}
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "season_simulation.json").write_text(json.dumps(output, indent=2))
+    (output_dir / "season_simulation.json").write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
     return output
 
 
@@ -52,9 +52,9 @@ def main(argv: list[str] | None = None) -> None:
     output = run_simulation(output_dir, iterations=args.iterations, seed=args.seed, league=league)
     if args.web_export_dir:
         args.web_export_dir.mkdir(parents=True, exist_ok=True)
-        payload = json.loads((output_dir / "auction_data.json").read_text())
+        payload = json.loads((output_dir / "auction_data.json").read_text(encoding="utf-8"))
         public_output = anonymize_public_simulation(output, payload["calendario_lega"])
-        (args.web_export_dir / "season_simulation.json").write_text(json.dumps(public_output, indent=2))
+        (args.web_export_dir / "season_simulation.json").write_text(json.dumps(public_output, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Simulated {args.iterations:,} seasons to {output_dir / 'season_simulation.json'}")
 
 

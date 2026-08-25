@@ -412,7 +412,7 @@ def build_projections(raw: Path = RAW, output: Path = PROCESSED, config: ModelCo
     output = output / profile.profile_id / profile.season.season.replace("/", "-") if profile else output
     output.mkdir(parents=True, exist_ok=True)
     review = pd.concat([starter_matches, piece_matches])
-    review[~review.metodo.isin(["auto", "manuale", "override"])].to_csv(output / "matching_review.csv", index=False)
+    review[~review.metodo.isin(["auto", "manuale", "override"])].to_csv(output / "matching_review.csv", index=False, encoding="utf-8")
     starter_status = starters.copy()
     starter_status["id_matched"] = starter_matches.id_matched.values
     pieces = set_pieces.copy()
@@ -494,12 +494,12 @@ def build_projections(raw: Path = RAW, output: Path = PROCESSED, config: ModelCo
     league_rules = league_rules_payload(league)
     profile_meta = {"profile_id": profile.profile_id, "profile_name": profile.name, "profile_hash": profile.configuration_hash, "season": profile.season.season} if profile else None
     payload = {"schema_version": "1.0", "model_version": "1.5", "players": players, "teams": team_records, "set_pieces": set_piece_records, "league_rules": league_rules, "calendario_serie_a": calendar_records, "calendario_lega": league_calendar, "meta": {"generato_il": datetime.now(timezone.utc).isoformat(), "versione_modello": "1.5", "profile": profile_meta, "assunzioni": "75 minuti per voto; disponibilita da status e storico; malus portieri incluso; lineup auto nel simulatore"}}
-    with (output / "auction_data.json").open("w") as handle:
+    with (output / "auction_data.json").open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, default=str, separators=(",", ":"), allow_nan=False)
     if web_export_dir is not None:
         web_export = web_export_dir / "auction_data.json"
         web_export.parent.mkdir(parents=True, exist_ok=True)
-        with web_export.open("w") as handle:
+        with web_export.open("w", encoding="utf-8") as handle:
             public_payload = {**payload, "calendario_lega": anonymize_public_calendar(payload["calendario_lega"]) if payload["calendario_lega"] else None}
             json.dump(public_payload, handle, ensure_ascii=False, default=str, separators=(",", ":"), allow_nan=False)
     return payload
