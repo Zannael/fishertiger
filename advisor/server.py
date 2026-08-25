@@ -76,6 +76,12 @@ class LocalApiServer(ThreadingHTTPServer):
         self.profile_loader = profile_loader
         super().__init__(address, LocalApiHandler)
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """Stay quiet when a client drops the connection mid-response."""
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
 
 class LocalApiHandler(BaseHTTPRequestHandler):
     server: LocalApiServer
@@ -135,6 +141,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_source_data", str(error))
             return
         except Exception:
+            traceback.print_exc(file=sys.stderr)
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "generation_failed", "Generation failed.")
             return
         else:
@@ -338,7 +345,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         except FileNotFoundError:
             self._error(HTTPStatus.NOT_FOUND, "dataset_not_found", "The dataset does not exist.")
             return
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "storage_error", "The dataset is invalid or unreadable.")
             return
         self._send_json(HTTPStatus.OK, value)
@@ -404,7 +411,10 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if body:
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except ConnectionError:
+                self.close_connection = True
 
     def log_message(self, format: str, *args: Any) -> None:
         """Keep the local API quiet; callers receive structured HTTP errors."""
