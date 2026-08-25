@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Download, Trash2, Upload } from "lucide-react";
 import "./index.css";
 import RandomAuctionView from "./random-auction.jsx";
 import { LeagueSettings } from "./league-settings.jsx";
@@ -22,6 +23,7 @@ import {
   auctionDatasetPath,
   deleteProfile,
   listProfiles,
+  parseProfileJson,
   loadDatasetUrl,
   loadProfile,
   rulesFor,
@@ -86,8 +88,9 @@ function App() {
   const [generationStatus, setGenerationStatus] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationStatus, setSimulationStatus] = useState("");
+  // ?? not ||: an empty base is a valid choice (same-origin behind a proxy).
   const apiBase =
-    import.meta.env.VITE_LOCAL_API_BASE || "http://127.0.0.1:8000";
+    import.meta.env.VITE_LOCAL_API_BASE ?? "http://127.0.0.1:8000";
   const [view, setView] = useState("overview");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -199,7 +202,7 @@ function App() {
     }
     if (!generate) return;
     try {
-      const response = await fetch(`${apiBase}/api/generate`, {
+      const response = await fetch(apiUrl("/api/generate", apiBase), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: nextProfile }),
@@ -272,10 +275,64 @@ function App() {
     if (profile?.profile_id === id)
       setProfile(await fetchDefaultProfile(apiBase));
   };
+  const exportProfile = () => {
+    if (!profile) return;
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(profile, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${profile.profile_id || "profilo"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+  const importProfile = async (file) => {
+    if (!file) return;
+    setProfileError("");
+    let incoming;
+    try {
+      incoming = parseProfileJson(await file.text());
+    } catch (error) {
+      setProfileError(
+        error instanceof Error ? error.message : "File del profilo non valido.",
+      );
+      return;
+    }
+    if (
+      profiles.includes(incoming.profile_id) &&
+      !window.confirm(
+        `Esiste gia un profilo "${incoming.profile_id}". Sovrascriverlo?`,
+      )
+    )
+      return;
+    try {
+      // The PUT response is the profile as the API validated it, so the UI shows
+      // the stored version rather than whatever the file happened to contain.
+      const stored = await saveProfile(incoming, { apiBase });
+      const id = stored?.profile_id || incoming.profile_id;
+      writeStoredProfileId(id);
+      setProfiles((current) =>
+        current.includes(id) ? current : [...current, id].sort(),
+      );
+      setProfile(stored || incoming);
+      setAuctionDraft(emptyDraft());
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Impossibile importare il profilo.",
+      );
+    }
+  };
   const profilePicker = (
-    <label className="profile-picker">
-      <span>Profilo</span>
+    <div className="profile-picker">
+      <label htmlFor="profile-select">Profilo</label>
       <select
+        id="profile-select"
         value={profiles.includes(profile?.profile_id) ? profile.profile_id : ""}
         onChange={(event) => selectProfile(event.target.value)}
       >
@@ -288,14 +345,37 @@ function App() {
       </select>
       <button
         type="button"
-        className="profile-remove"
+        className="profile-icon"
+        onClick={exportProfile}
+        disabled={!profile}
+        title="Esporta"
+        aria-label="Esporta"
+      >
+        <Download size={16} aria-hidden="true" />
+      </button>
+      <label className="profile-icon profile-import" title="Importa">
+        <input
+          type="file"
+          accept=".json,application/json"
+          aria-label="Importa"
+          onChange={(event) => {
+            importProfile(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        <Upload size={16} aria-hidden="true" />
+      </label>
+      <button
+        type="button"
+        className="profile-icon danger"
         onClick={() => removeProfile(profile?.profile_id)}
         disabled={!profiles.includes(profile?.profile_id)}
-        title="Rimuovi il profilo selezionato"
+        title="Elimina"
+        aria-label="Elimina"
       >
-        Rimuovi
+        <Trash2 size={16} aria-hidden="true" />
       </button>
-    </label>
+    </div>
   );
   const regenerateData = async () => {
     if (!profile || isGenerating) return;
@@ -315,13 +395,14 @@ function App() {
     setIsSimulating(true);
     setSimulationStatus("Simulazione in corso...");
     try {
-      const response = await fetch(`${apiBase}/api/simulate`, {
+      const response = await fetch(apiUrl("/api/simulate", apiBase), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile, iterations: 1000, seed: 202627 }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message || "Simulazione non completata.");
+      if (!response.ok)
+        throw new Error(result.error?.message || "Simulazione non completata.");
       setSeason(result);
       setSimulationStatus("Simulazione aggiornata.");
     } catch (error) {
@@ -348,11 +429,12 @@ function App() {
           <div className="view-heading">
             <span className="eyebrow">CONFIGURAZIONE INIZIALE</span>
             <h1>Genera il tuo dataset</h1>
-            <p>Carica il calendario della tua lega nelle Impostazioni e genera i dati per iniziare.</p>
+            <p>
+              Carica il calendario della tua lega nelle Impostazioni e genera i
+              dati per iniziare.
+            </p>
           </div>
-          {profiles.length > 0 && (
-            <div className="profile-picker-row">{profilePicker}</div>
-          )}
+          <div className="profile-picker-row">{profilePicker}</div>{" "}
           <LeagueSettings
             initialProfile={profile}
             leagueCalendar={null}
@@ -360,7 +442,11 @@ function App() {
             onSave={(nextProfile) => updateProfile(nextProfile)}
             onGenerate={(nextProfile) => updateProfile(nextProfile, true)}
           />
-          {profileError && <p className="profile-error" role="alert">{profileError}</p>}
+          {profileError && (
+            <p className="profile-error" role="alert">
+              {profileError}
+            </p>
+          )}
         </section>
       </main>
     );
@@ -409,7 +495,9 @@ function App() {
           Dati aggiornati
           <br />
           <small>
-            {generationStatus || data.meta?.generato_il?.slice(0, 10) || "profilo locale"}
+            {generationStatus ||
+              data.meta?.generato_il?.slice(0, 10) ||
+              "profilo locale"}
           </small>
           <button
             className="regenerate-data"
@@ -447,15 +535,15 @@ function App() {
         <SetPiecesView data={data} openPlayer={openPlayer} />
       )}
       {view === "simulation" && (
-          <SeasonView
-            season={season}
-            data={data}
-            openPlayer={openPlayer}
-            rules={activeRules}
-            profileId={activeProfileId}
-            onRerun={rerunSimulation}
-            isSimulating={isSimulating}
-            simulationStatus={simulationStatus}
+        <SeasonView
+          season={season}
+          data={data}
+          openPlayer={openPlayer}
+          rules={activeRules}
+          profileId={activeProfileId}
+          onRerun={rerunSimulation}
+          isSimulating={isSimulating}
+          simulationStatus={simulationStatus}
         />
       )}
       {view === "auction" && (
@@ -488,7 +576,16 @@ function App() {
   );
 }
 
-function SeasonView({ season, data, openPlayer, rules, profileId, onRerun, isSimulating, simulationStatus }) {
+function SeasonView({
+  season,
+  data,
+  openPlayer,
+  rules,
+  profileId,
+  onRerun,
+  isSimulating,
+  simulationStatus,
+}) {
   const [mode, setMode] = useState("report");
   return (
     <>
@@ -515,13 +612,27 @@ function SeasonView({ season, data, openPlayer, rules, profileId, onRerun, isSim
       {mode === "auction" ? (
         <RandomAuctionView data={data} rules={rules} profileId={profileId} />
       ) : (
-        <SeasonReport season={season} data={data} openPlayer={openPlayer} onRerun={onRerun} isSimulating={isSimulating} simulationStatus={simulationStatus} />
+        <SeasonReport
+          season={season}
+          data={data}
+          openPlayer={openPlayer}
+          onRerun={onRerun}
+          isSimulating={isSimulating}
+          simulationStatus={simulationStatus}
+        />
       )}
     </>
   );
 }
 
-function SeasonReport({ season, data, openPlayer, onRerun, isSimulating, simulationStatus }) {
+function SeasonReport({
+  season,
+  data,
+  openPlayer,
+  onRerun,
+  isSimulating,
+  simulationStatus,
+}) {
   const [selected, setSelected] = useState(null);
   if (!data.calendario_lega)
     return (
@@ -529,7 +640,10 @@ function SeasonReport({ season, data, openPlayer, onRerun, isSimulating, simulat
         <div className="view-heading">
           <span className="eyebrow">MONTE CARLO OFFLINE</span>
           <h1>Calendario della lega richiesto</h1>
-          <p>Puoi usare dashboard, proiezioni e asta. Carica il calendario della lega nelle Impostazioni per simulare la stagione.</p>
+          <p>
+            Puoi usare dashboard, proiezioni e asta. Carica il calendario della
+            lega nelle Impostazioni per simulare la stagione.
+          </p>
         </div>
       </section>
     );
@@ -539,8 +653,15 @@ function SeasonReport({ season, data, openPlayer, onRerun, isSimulating, simulat
         <div className="view-heading">
           <span className="eyebrow">MONTE CARLO OFFLINE</span>
           <h1>Simulazione non generata</h1>
-          <p>Avvia una simulazione per costruire il report pre-asta sulle rose esempio.</p>
-          <SimulationRunButton onRerun={onRerun} isSimulating={isSimulating} status={simulationStatus} />
+          <p>
+            Avvia una simulazione per costruire il report pre-asta sulle rose
+            esempio.
+          </p>
+          <SimulationRunButton
+            onRerun={onRerun}
+            isSimulating={isSimulating}
+            status={simulationStatus}
+          />
         </div>
       </section>
     );
@@ -562,9 +683,14 @@ function SeasonReport({ season, data, openPlayer, onRerun, isSimulating, simulat
         <h1>Esiti delle rose esempio</h1>
         <p>
           {season.iterations.toLocaleString("it-IT")} stagioni simulate · seed{" "}
-          {season.diagnostics.seed} · {data.calendario_lega?.matchdays?.length || "n/d"} giornate di lega
+          {season.diagnostics.seed} ·{" "}
+          {data.calendario_lega?.matchdays?.length || "n/d"} giornate di lega
         </p>
-        <SimulationRunButton onRerun={onRerun} isSimulating={isSimulating} status={simulationStatus} />
+        <SimulationRunButton
+          onRerun={onRerun}
+          isSimulating={isSimulating}
+          status={simulationStatus}
+        />
       </div>
       <section className="panel simulation-report">
         <div className="sim-header">
@@ -705,7 +831,11 @@ function Overview({ data, openPlayer, openTeam }) {
             {data.players.length}
             <small> giocatori</small>
           </strong>
-          <p>{data.teams.length} squadre Serie A · {data.calendario_serie_a?.length / 10 || "n/d"} giornate · {data.set_pieces.length} gerarchie piazzati</p>
+          <p>
+            {data.teams.length} squadre Serie A ·{" "}
+            {data.calendario_serie_a?.length / 10 || "n/d"} giornate ·{" "}
+            {data.set_pieces.length} gerarchie piazzati
+          </p>
         </div>
       </section>
       <section className="metric-grid">
@@ -789,7 +919,9 @@ function Overview({ data, openPlayer, openTeam }) {
             <span className="eyebrow">SERIE A</span>
             <h2>Esplora le squadre</h2>
           </div>
-          <button onClick={() => openTeam(data.teams[0]?.squadra)}>Calendari e rose</button>
+          <button onClick={() => openTeam(data.teams[0]?.squadra)}>
+            Calendari e rose
+          </button>
         </div>
         <div>
           {data.teams.map((team) => (
@@ -876,9 +1008,7 @@ function PlayersView({ data, rules, selected, setSelected }) {
             </button>
           ))}
         </div>
-        {player && (
-          <PlayerDetail player={player} valuation={valuation} />
-        )}
+        {player && <PlayerDetail player={player} valuation={valuation} />}
       </div>
     </section>
   );
@@ -1323,8 +1453,10 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
   });
   const [userTeamIndex, setUserTeamIndex] = useState(defaultUserTeamIndex);
   const { query, price } = draft;
-  const setQuery = (value) => setDraft((current) => ({ ...current, query: value }));
-  const setPrice = (value) => setDraft((current) => ({ ...current, price: value }));
+  const setQuery = (value) =>
+    setDraft((current) => ({ ...current, query: value }));
+  const setPrice = (value) =>
+    setDraft((current) => ({ ...current, price: value }));
   // The draft stores an id, so a regenerated dataset can never leave a stale
   // player object selected.
   const player = draftPlayer(draft, data.players);
@@ -1423,7 +1555,9 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
     .slice(0, 7);
   const selectPlayer = (candidate) => {
     if (activeRole && candidate.ruolo !== activeRole) {
-      setMessage(`In questa fase puoi chiamare solo ${ROLE_LABELS[activeRole].toLowerCase()}.`);
+      setMessage(
+        `In questa fase puoi chiamare solo ${ROLE_LABELS[activeRole].toLowerCase()}.`,
+      );
       return setMessageType("error");
     }
     setPlayer(candidate);
@@ -1442,7 +1576,9 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
       return setMessageType("error");
     }
     if (activeRole && player.ruolo !== activeRole) {
-      setMessage(`In questa fase puoi assegnare solo ${ROLE_LABELS[activeRole].toLowerCase()}.`);
+      setMessage(
+        `In questa fase puoi assegnare solo ${ROLE_LABELS[activeRole].toLowerCase()}.`,
+      );
       return setMessageType("error");
     }
     if (!Number.isInteger(value) || value < activeRules.auction.minPrice) {
@@ -1670,7 +1806,8 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
       </p>
       {activeRole && (
         <p className="auction-status info" role="status">
-          Fase attiva: {ROLE_LABELS[activeRole]}. Completa i posti di questo ruolo in tutte le rose per passare al successivo.
+          Fase attiva: {ROLE_LABELS[activeRole]}. Completa i posti di questo
+          ruolo in tutte le rose per passare al successivo.
         </p>
       )}
       <div className="auction-bar">
@@ -1687,7 +1824,8 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (player && activeRole && player.ruolo !== activeRole) setPlayer(null);
+              if (player && activeRole && player.ruolo !== activeRole)
+                setPlayer(null);
               setSuggestionsOpen(true);
             }}
             onFocus={() => setSuggestionsOpen(true)}

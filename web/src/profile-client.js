@@ -84,6 +84,22 @@ export const saveProfile = async (profile, options = {}) => {
   });
 };
 
+/** Parse a profile file chosen by the user. Rejects anything the API would refuse
+ *  anyway, so the failure is reported before a request is made. */
+export const parseProfileJson = (text) => {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    fail("invalid_profile_file", "Il file non contiene JSON valido.", { cause });
+  }
+  if (!isObject(value)) fail("invalid_profile_file", "Il file deve contenere un oggetto JSON.");
+  if (typeof value.profile_id !== "string" || !value.profile_id.trim())
+    fail("invalid_profile_file", "Il file non sembra un profilo: manca profile_id.");
+  profileId(value.profile_id);
+  return value;
+};
+
 export const deleteProfile = async (id, options = {}) =>
   requestJson(apiUrl(`/api/profiles/${encodeURIComponent(profileId(id))}`, options.apiBase), {
     ...options,

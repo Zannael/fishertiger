@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from advisor.league_profile import LeagueProfile, NOMINATION_POLICIES, TIE_BREAKERS
+from advisor.league_profile import LeagueProfile, NOMINATION_POLICIES, SourceDeclaration, TIE_BREAKERS
 
 
 PROFILE_PATH = Path(__file__).parents[1] / "config" / "default_profile.json"
@@ -150,3 +150,30 @@ def test_legacy_mvp_configuration_is_ignored():
     profile = LeagueProfile.from_dict(value)
 
     assert "mvp" not in profile.to_dict()
+
+
+def test_source_paths_are_stored_with_posix_separators():
+    """A profile exported from Windows must resolve on a POSIX host."""
+    windows = SourceDeclaration(
+        name="league_calendar",
+        path=r"data\uploads\my-league\current_sources\league_calendar.xlsx",
+        format="xlsx",
+    )
+    assert windows.path == "data/uploads/my-league/current_sources/league_calendar.xlsx"
+
+    unchanged = SourceDeclaration(name="teams", path="data/raw/squadre.csv", format="csv")
+    assert unchanged.path == "data/raw/squadre.csv"
+
+
+def test_a_profile_round_trips_through_json_with_portable_paths(tmp_path):
+    profile = LeagueProfile.load_json(PROFILE_PATH)
+    exported = tmp_path / "exported.json"
+    profile.dump_json(exported)
+
+    reimported = LeagueProfile.load_json(exported)
+    assert reimported.to_dict() == profile.to_dict()
+    assert reimported.configuration_hash == profile.configuration_hash
+    assert all(
+        "\\" not in source.path
+        for source in (*reimported.current_sources, *reimported.history_sources)
+    )
