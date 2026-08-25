@@ -123,18 +123,29 @@ function App() {
   }, [apiBase]);
   useEffect(() => {
     if (!profile) return;
+    let cancelled = false;
     const datasetPath = auctionDatasetPath(profile);
     loadDatasetUrl(apiUrl(`/api/datasets/${datasetPath}`, apiBase), { profile })
       .then((nextData) => {
+        if (cancelled) return;
         setData(nextData);
         setSelectedTeam((team) => team || nextData.teams[0]?.squadra || null);
       })
-      .catch(() => setData(null));
+      .catch(() => {
+        if (!cancelled) setData(null);
+      });
     fetch(apiUrl(`/api/datasets/${seasonSimulationPath(profile)}`, apiBase))
       .then((response) => (response.ok ? response.json() : null))
-      .then(setSeason)
-      .catch(() => setSeason(null));
+      .then((nextSeason) => {
+        if (!cancelled) setSeason(nextSeason);
+      })
+      .catch(() => {
+        if (!cancelled) setSeason(null);
+      });
     setAuctionDraft(emptyDraft());
+    return () => {
+      cancelled = true;
+    };
   }, [apiBase, profile]);
   useEffect(() => {
     const initialRoute = { view: "overview", player: null, team: null };
