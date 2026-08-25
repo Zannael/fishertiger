@@ -1,0 +1,9 @@
+.git
+.venv
+**/node_modules
+web/dist
+data/processed
+data/uploads
+graphify-out
+**/__pycache__
+**/*.pyc

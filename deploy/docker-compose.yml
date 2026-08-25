@@ -1,0 +1,30 @@
+name: fishertiger
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    image: fishertiger-api:latest
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - ../config:/app/config
+      - ../data/raw:/app/data/raw:ro
+      - ../data/processed:/app/data/processed
+      - ../data/uploads:/app/data/uploads
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        VITE_LOCAL_API_BASE: "${VITE_LOCAL_API_BASE-}"
+    image: fishertiger-web:latest
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy

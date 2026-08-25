@@ -38,6 +38,7 @@ class SourceDeclaration:
     def __post_init__(self) -> None:
         _require(bool(self.name.strip()), "source name is required")
         _require(bool(self.path.strip()), "source path is required")
+        object.__setattr__(self, "path", self.path.replace("\\", "/"))
         _require(bool(self.format.strip()), "source format is required")
         _require(self.format.lower() in {"csv", "xlsx", "json"}, f"unsupported source format: {self.format}")
         if self.season is not None:

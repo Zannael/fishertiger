@@ -290,7 +290,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         except OSError:
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "upload_failed", "The source file could not be stored.")
             return
-        self._send_json(HTTPStatus.OK, {"path": str(target), "filename": Path(filename).name, "size": content_length})
+        self._send_json(HTTPStatus.OK, {"path": target.as_posix(), "filename": Path(filename).name, "size": content_length})
 
     def _source_status(self) -> None:
         value = self._read_json_object()
