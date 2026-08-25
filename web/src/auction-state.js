@@ -7,6 +7,18 @@ const integer = (value, minimum = 0) =>
 
 export const playerIdKey = (id) => String(id);
 
+export const emptyDraft = () => ({ playerId: null, query: "", price: "" });
+
+export const draftPlayer = (draft, players) => {
+  const id = draft?.playerId;
+  if (id === null || id === undefined) return null;
+  return (
+    (players || []).find(
+      (candidate) => playerIdKey(candidate.id) === playerIdKey(id),
+    ) || null
+  );
+};
+
 export const auctionStorageKey = (profileId) =>
   `fanta-auction-v${AUCTION_STORAGE_VERSION}:${encodeURIComponent(profileId || "default")}`;
 
@@ -14,7 +26,7 @@ const teamNames = (rules) =>
   Array.from({ length: rules.participants }, (_, index) =>
     String(
       rules.teamNames?.[index] ||
-        (index === 0 ? "La mia squadra" : `Squadra ${index + 1}`),
+      (index === 0 ? "La mia squadra" : `Squadra ${index + 1}`),
     ),
   );
 
