@@ -5,6 +5,7 @@ import "./index.css";
 import RandomAuctionView from "./random-auction.jsx";
 import { LeagueSettings } from "./league-settings.jsx";
 import { normalizeRules } from "./league-rules.js";
+import { createRequestGate } from "./latest-request.js";
 import { activeNominationRole } from "./auction-nomination.js";
 import {
   auctionStorageKey,
@@ -99,8 +100,14 @@ function App() {
     { view: "overview", player: null, team: null },
   ]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const profileRequests = useRef(null);
+  if (!profileRequests.current) profileRequests.current = createRequestGate();
+  const claimProfileRequest = () => profileRequests.current.claim();
+  const isCurrentProfileRequest = (request) =>
+    profileRequests.current.isCurrent(request);
   useEffect(() => {
     let cancelled = false;
+    const request = claimProfileRequest();
     (async () => {
       let names = [];
       try {
@@ -116,7 +123,7 @@ function App() {
         next = await loadProfile(storedId, { apiBase }).catch(() => null);
       }
       if (!next) next = await fetchDefaultProfile(apiBase);
-      if (!cancelled) setProfile(next);
+      if (!cancelled && isCurrentProfileRequest(request)) setProfile(next);
     })();
     return () => {
       cancelled = true;
@@ -206,10 +213,12 @@ function App() {
       setProfileError(pathError);
       throw new Error(pathError);
     }
+    const request = claimProfileRequest();
     let saveWarning = "";
+    let saved = false;
     try {
       await saveProfile(nextProfile, { apiBase });
-      writeStoredProfileId(nextProfile.profile_id);
+      saved = true;
       setProfiles((current) =>
         current.includes(nextProfile.profile_id)
           ? current
@@ -220,8 +229,9 @@ function App() {
         error instanceof Error ? error.message : "errore sconosciuto"
       }.`;
     }
+    if (!isCurrentProfileRequest(request)) return;
+    if (saved) writeStoredProfileId(nextProfile.profile_id);
     setProfile(nextProfile);
-    // A failed save must not block a generation the user already asked for.
     if (!generate) {
       if (saveWarning) {
         setProfileError(saveWarning);
@@ -240,36 +250,42 @@ function App() {
         throw new Error(
           payload.error?.message || "Generazione non completata.",
         );
-      setData(
-        await loadDatasetUrl(
-          apiUrl(`/api/datasets/${payload.dataset_path}`, apiBase),
-          { profile: nextProfile },
-        ),
+      const nextData = await loadDatasetUrl(
+        apiUrl(`/api/datasets/${payload.dataset_path}`, apiBase),
+        { profile: nextProfile },
       );
+      if (!isCurrentProfileRequest(request)) return;
+      setData(nextData);
       setSeason(null);
       navigate("overview");
       if (saveWarning) setProfileError(saveWarning);
     } catch (error) {
-      setProfileError(
-        error instanceof Error
-          ? error.message
-          : "Impossibile generare il dataset del profilo.",
-      );
+      if (isCurrentProfileRequest(request))
+        setProfileError(
+          error instanceof Error
+            ? error.message
+            : "Impossibile generare il dataset del profilo.",
+        );
       throw error;
     }
   };
   const selectProfile = async (id) => {
     setProfileError("");
+    const request = claimProfileRequest();
     if (!id) {
+      const fallback = await fetchDefaultProfile(apiBase);
+      if (!isCurrentProfileRequest(request)) return;
       writeStoredProfileId("");
-      setProfile(await fetchDefaultProfile(apiBase));
+      setProfile(fallback);
       return;
     }
     try {
       const next = await loadProfile(id, { apiBase });
+      if (!isCurrentProfileRequest(request)) return;
       writeStoredProfileId(id);
       setProfile(next);
     } catch (error) {
+      if (!isCurrentProfileRequest(request)) return;
       setProfileError(
         error instanceof Error
           ? error.message
@@ -299,9 +315,11 @@ function App() {
     const remaining = profiles.filter((name) => name !== id);
     setProfiles(remaining);
     if (readStoredProfileId() === id) writeStoredProfileId("");
-    // Only fall back when the deleted profile was the one on screen.
-    if (profile?.profile_id === id)
-      setProfile(await fetchDefaultProfile(apiBase));
+    if (profile?.profile_id === id) {
+      const request = claimProfileRequest();
+      const fallback = await fetchDefaultProfile(apiBase);
+      if (isCurrentProfileRequest(request)) setProfile(fallback);
+    }
   };
   const exportProfile = () => {
     if (!profile) return;
@@ -337,18 +355,19 @@ function App() {
       )
     )
       return;
+    const request = claimProfileRequest();
     try {
-      // The PUT response is the profile as the API validated it, so the UI shows
-      // the stored version rather than whatever the file happened to contain.
       const stored = await saveProfile(incoming, { apiBase });
       const id = stored?.profile_id || incoming.profile_id;
-      writeStoredProfileId(id);
       setProfiles((current) =>
         current.includes(id) ? current : [...current, id].sort(),
       );
+      if (!isCurrentProfileRequest(request)) return;
+      writeStoredProfileId(id);
       setProfile(stored || incoming);
       setAuctionDraft(emptyDraft());
     } catch (error) {
+      if (!isCurrentProfileRequest(request)) return;
       setProfileError(
         error instanceof Error
           ? error.message
