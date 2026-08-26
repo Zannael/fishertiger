@@ -1,0 +1,618 @@
+/*
+ * Live auction.
+ *
+ * The constraint that shapes this screen: someone shouts a name, you have a few
+ * seconds, and you are holding a phone. So the screen answers exactly one
+ * question at a time — "is this price still worth it?" — and everything that is
+ * not that answer is either a sticky one-line summary or folded away.
+ */
+
+.auction {
+  display: grid;
+  gap: var(--s-3);
+}
+
+/* ------------------------------------------------------------- my team bar */
+
+/* Always visible, because every decision is bounded by these three numbers. */
+.myteam {
+  position: sticky;
+  z-index: 20;
+  top: calc(var(--h-topbar) + var(--safe-top));
+  display: grid;
+  gap: var(--s-2);
+  margin-inline: calc(var(--s-4) * -1);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-canvas);
+}
+
+.myteam-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.myteam-credits {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: var(--fs-2xl);
+  font-weight: 720;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.myteam-credits span {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.myteam-max {
+  display: grid;
+  margin-left: auto;
+  text-align: right;
+  line-height: 1.15;
+}
+
+.myteam-max b {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.myteam-max span {
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 640;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+/* Slot counters double as the role legend, so the colour code is reinforced
+   every time you glance at the budget. */
+.slot-row {
+  display: flex;
+  gap: 5px;
+}
+
+.slot {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--role-color) 13%, transparent);
+  color: var(--role-color);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.slot.is-done {
+  background: var(--c-surface-2);
+  color: var(--c-text-mute);
+}
+
+.slot-open {
+  color: inherit;
+}
+
+/* ------------------------------------------------------------- phase banner */
+
+.phase {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-brand-line);
+  border-radius: var(--r-md);
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+  font-size: var(--fs-sm);
+  font-weight: 620;
+}
+
+/* ------------------------------------------------------------------ search */
+
+.nominate {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.nominate-field {
+  position: relative;
+}
+
+.nominate-field .input {
+  min-height: 52px;
+  padding-left: 42px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.nominate-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--s-3);
+  width: 18px;
+  height: 18px;
+  color: var(--c-text-mute);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.nominate-clear {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+}
+
+.results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  overflow: hidden auto;
+  max-height: 46dvh;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.results-note {
+  display: block;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--c-line-soft);
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+}
+
+/* ------------------------------------------------------------- verdict card */
+
+.verdict {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--verdict-line, var(--c-line));
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+}
+
+.verdict::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--verdict-color, var(--c-text-mute));
+}
+
+.verdict.is-go {
+  --verdict-color: var(--c-go);
+  --verdict-line: rgb(53 208 127 / 34%);
+  --verdict-tint: var(--c-go-tint);
+}
+
+.verdict.is-warn {
+  --verdict-color: var(--c-warn);
+  --verdict-line: rgb(255 176 32 / 34%);
+  --verdict-tint: var(--c-warn-tint);
+}
+
+.verdict.is-stop {
+  --verdict-color: var(--c-stop);
+  --verdict-line: rgb(255 93 93 / 34%);
+  --verdict-tint: var(--c-stop-tint);
+}
+
+.verdict-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+}
+
+.verdict-id {
+  min-width: 0;
+}
+
+.verdict-id h2 {
+  font-size: var(--fs-xl);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verdict-id p {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verdict-call {
+  display: grid;
+  gap: 2px;
+  padding: 0 var(--s-4) var(--s-3);
+}
+
+.verdict-word {
+  color: var(--verdict-color, var(--c-text));
+  font-size: var(--fs-3xl);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.verdict-sub {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+}
+
+/* --------------------------------------------------------------- bid gauge */
+
+/*
+ * One horizontal scale from 0 to the highest bid the rules still allow, with
+ * the advisor's ideal band, its hard value ceiling and the estimated market
+ * price laid over it. Moving the price marker across the bands is the whole
+ * decision, made visible instead of read off four separate numbers.
+ */
+.gauge {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4) var(--s-4);
+}
+
+.gauge-track {
+  position: relative;
+  height: 42px;
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  overflow: hidden;
+}
+
+.gauge-band {
+  position: absolute;
+  inset: 0 auto 0 var(--ideal-start, 0%);
+  width: var(--ideal-width, 0%);
+  background: var(--c-go-tint);
+  box-shadow:
+    inset 1px 0 0 rgb(53 208 127 / 45%),
+    inset -1px 0 0 rgb(53 208 127 / 45%);
+}
+
+.gauge-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--now, 0%);
+  background: color-mix(in srgb, var(--verdict-color, var(--c-brand)) 20%, transparent);
+  transition: width var(--t-fast) var(--ease);
+}
+
+.gauge-mark {
+  position: absolute;
+  inset: 0 auto;
+  left: var(--at, 0%);
+  width: 2px;
+  margin-left: -1px;
+}
+
+.gauge-mark--cap {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--c-stop) 0 4px,
+    transparent 4px 7px
+  );
+}
+
+.gauge-mark--market {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--c-text-mute) 0 4px,
+    transparent 4px 7px
+  );
+}
+
+.gauge-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--now, 0%);
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  height: 30px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--verdict-color, var(--c-brand));
+  color: #07090f;
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+  transition:
+    left var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.gauge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+}
+
+.gauge-legend b {
+  color: var(--c-text-dim);
+  font-family: var(--font-num);
+  font-weight: 700;
+}
+
+.gauge-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.gauge-legend .k-band {
+  background: var(--c-go);
+}
+
+.gauge-legend .k-cap {
+  background: var(--c-stop);
+}
+
+.gauge-legend .k-market {
+  background: var(--c-text-mute);
+}
+
+/* -------------------------------------------------------------- bid controls */
+
+.bidbar {
+  display: grid;
+  gap: var(--s-2);
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: var(--tap) var(--tap) minmax(0, 1fr) var(--tap) var(--tap);
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.stepper button {
+  display: grid;
+  place-items: center;
+  height: var(--tap);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  font-family: var(--font-num);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-text-dim);
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+
+.stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepper .input {
+  height: var(--tap);
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  text-align: center;
+  appearance: textfield;
+}
+
+.stepper .input::-webkit-outer-spin-button,
+.stepper .input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.assign-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-2);
+}
+
+@media (min-width: 560px) {
+  .assign-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.bid-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.bid-foot .micro {
+  flex: 1;
+  min-width: 0;
+}
+
+.verdict-more {
+  display: grid;
+  gap: var(--s-2);
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+/* ------------------------------------------------------------------- teams */
+
+/* Auto-fill on a real minimum: a fixed column count squeezed the club name to
+   nothing inside the narrow desktop sidebar. */
+.teams-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--s-2);
+}
+
+.team-card {
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.team-card.is-mine {
+  border-color: var(--c-brand-line);
+  background: linear-gradient(
+    180deg,
+    var(--c-brand-tint) 0%,
+    var(--c-surface) 46%
+  );
+}
+
+.team-card > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 52px;
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.team-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.team-card > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--c-text-mute);
+  border-bottom: 2px solid var(--c-text-mute);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.team-card[open] > summary::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.team-card-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: 660;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-card-name small {
+  display: block;
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.team-card-credits {
+  font-family: var(--font-num);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.team-card-credits small {
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.team-card-body {
+  padding: 0 var(--s-2) var(--s-2);
+}
+
+.team-card-body .row {
+  border-radius: var(--r-sm);
+  padding-inline: var(--s-2);
+}
+
+/* Renaming and re-crediting are setup chores, not auction moves: they stay
+   behind an explicit toggle so the board reads as data during play. */
+.team-setup {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--c-line-soft);
+  background: var(--c-surface-2);
+}
+
+@media (min-width: 480px) {
+  .team-setup {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- log strip */
+
+.log-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line-soft);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.log-strip b {
+  color: var(--c-text);
+  font-weight: 640;
+}
+
+.log-strip > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------ desktop split */
+
+@media (min-width: 1000px) {
+  .auction-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    gap: var(--s-4);
+    align-items: start;
+  }
+
+  .auction-split > .auction-aside {
+    position: sticky;
+    top: calc(var(--h-topbar) + var(--safe-top) + var(--s-4));
+    display: grid;
+    gap: var(--s-3);
+  }
+
+  .myteam {
+    position: static;
+    margin: 0;
+    padding: var(--s-4);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-lg);
+    background: var(--c-surface);
+    backdrop-filter: none;
+  }
+}

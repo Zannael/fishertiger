@@ -1,0 +1,360 @@
+/*
+ * Application shell.
+ *
+ * Phones get a slim top bar plus a five-slot bottom tab bar, because the auction
+ * happens one-handed with the phone held low. From 1000px the same navigation
+ * model turns into a left rail without changing any markup or route ids.
+ */
+
+.app {
+  min-height: 100dvh;
+  padding-top: calc(var(--h-topbar) + var(--safe-top));
+  padding-bottom: calc(var(--h-tabbar) + var(--safe-bottom) + var(--s-4));
+  background: var(--c-canvas);
+}
+
+.page {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding: var(--s-4) var(--s-4) var(--s-8);
+}
+
+/* ------------------------------------------------------------------- top bar */
+
+.topbar {
+  position: fixed;
+  z-index: 40;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: calc(var(--h-topbar) + var(--safe-top));
+  padding: var(--safe-top) var(--s-4) 0;
+  border-bottom: 1px solid var(--c-line-soft);
+  background: var(--c-canvas);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  margin-inline-end: auto;
+  min-width: 0;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(140deg, var(--c-brand) 0%, #4d4ee0 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.brand-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.brand-text strong {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+
+.brand-text span {
+  color: var(--c-text-mute);
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.06em;
+}
+
+.icon-btn {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  color: var(--c-text-dim);
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Data freshness lives in the top bar as a single dot plus a sheet, instead of
+   the old three-line status block that pushed content off the first screen. */
+.data-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 640;
+  white-space: nowrap;
+}
+
+.data-chip:hover {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+
+.data-chip .dot {
+  background: var(--c-go);
+}
+
+.data-chip.is-stale .dot {
+  background: var(--c-warn);
+}
+
+.data-chip.is-busy .dot {
+  background: var(--c-info);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.data-chip-label {
+  display: none;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-chip.is-busy .dot {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- tab bar */
+
+.tabbar {
+  position: fixed;
+  z-index: 40;
+  inset: auto 0 0;
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  height: calc(var(--h-tabbar) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  border-top: 1px solid var(--c-line-soft);
+  background: var(--c-canvas);
+}
+
+.tab {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 640;
+  letter-spacing: 0.01em;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.tab svg {
+  width: 21px;
+  height: 21px;
+}
+
+.tab:hover {
+  color: var(--c-text-dim);
+}
+
+.tab.is-active {
+  color: var(--c-brand-bright);
+}
+
+/* The auction tab is the reason the app exists, so it is given weight. */
+.tab--hero .tab-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 28px;
+  margin-bottom: 1px;
+  border-radius: var(--r-pill);
+  background: var(--c-raised);
+  color: var(--c-text-dim);
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.tab--hero.is-active .tab-icon {
+  background: var(--c-brand);
+  color: #0a0b12;
+}
+
+.tab--hero .tab-badge {
+  position: absolute;
+  transform: translate(15px, -12px);
+  padding: 1px 5px;
+  border-radius: var(--r-pill);
+  background: var(--c-go);
+  color: #062314;
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+/* ------------------------------------------------------------- desktop rail */
+
+@media (min-width: 1000px) {
+  .app {
+    padding-top: calc(var(--h-topbar) + var(--safe-top));
+    padding-bottom: var(--s-8);
+    padding-left: var(--w-rail);
+  }
+
+  .topbar {
+    left: var(--w-rail);
+    padding-inline: var(--s-6);
+  }
+
+  .page {
+    padding: var(--s-6) var(--s-6) var(--s-12);
+  }
+
+  .data-chip-label {
+    display: inline;
+  }
+
+  /* The rail already carries the product name; repeating it in the bar was
+     noise, so the bar keeps only the controls. */
+  .topbar {
+    justify-content: flex-end;
+  }
+
+  .topbar .brand {
+    display: none;
+  }
+
+  .tabbar {
+    inset: 0 auto 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: var(--w-rail);
+    height: 100dvh;
+    padding: var(--s-4) var(--s-3);
+    border-top: 0;
+    border-right: 1px solid var(--c-line-soft);
+    background: var(--c-surface);
+    backdrop-filter: none;
+  }
+
+  .tabbar::before {
+    content: "Fishertiger";
+    padding: var(--s-2) var(--s-3) var(--s-6);
+    color: var(--c-text);
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  .tab {
+    grid-auto-flow: column;
+    grid-template-columns: 22px 1fr;
+    justify-items: start;
+    gap: var(--s-3);
+    min-height: 42px;
+    padding: 0 var(--s-3);
+    border-radius: var(--r-md);
+    font-size: var(--fs-md);
+    font-weight: 620;
+  }
+
+  .tab:hover {
+    background: var(--c-surface-2);
+  }
+
+  .tab.is-active {
+    background: var(--c-brand-tint);
+    color: var(--c-brand-bright);
+  }
+
+  .tab--hero .tab-icon {
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    background: none;
+    color: inherit;
+  }
+
+  .tab--hero.is-active .tab-icon {
+    background: none;
+    color: inherit;
+  }
+
+  .tab--hero .tab-badge {
+    position: static;
+    margin-left: auto;
+    transform: none;
+  }
+}
+
+/* --------------------------------------------------------------- app states */
+
+.boot {
+  display: grid;
+  place-items: center;
+  gap: var(--s-3);
+  min-height: 100dvh;
+  padding: var(--s-6);
+  text-align: center;
+}
+
+.boot-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--c-line);
+  border-top-color: var(--c-brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner {
+    animation-duration: 2s;
+  }
+}

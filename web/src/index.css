@@ -1,111 +1,34 @@
 @import "tailwindcss";
-@import "./style.css" layer(components);
-@import "./simulation.css" layer(components);
-@import "./navigation.css" layer(components);
-@import "./auction.css" layer(components);
-@import "./auction-layout.css" layer(components);
-@import "./strategy.css" layer(components);
-@import "./simulation-mode.css" layer(components);
-@import "./random-auction.css" layer(components);
+
+/* Design system, in cascade order: tokens, element defaults, primitives,
+   shell, then the screens that compose them. */
+@import "./styles/tokens.css" layer(components);
+@import "./styles/base.css" layer(components);
+@import "./styles/primitives.css" layer(components);
+@import "./styles/shell.css" layer(components);
+@import "./styles/sheet.css" layer(components);
+@import "./styles/auction.css" layer(components);
+@import "./styles/views.css" layer(components);
+
+/* Two screens keep their own namespaced stylesheets; both are retimed to the
+   shared tokens rather than carrying private palettes. */
 @import "./league-settings.css" layer(components);
+@import "./random-auction.css" layer(components);
 
-@layer components {
-  .auction-advice {
-    align-items: center !important;
-  }
-
-  .player-detail .projection {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .valuation-warning {
-    display: grid;
-    gap: 4px;
-    margin: 14px 0;
-    padding: 12px;
-    border: 1px solid #936c25;
-    border-radius: 8px;
-    background: #fff2bd;
-    color: #49370e;
-    font-size: 12px;
-  }
-
-  .valuation-source-note {
-    margin: 10px 0 0;
-    color: #40543d !important;
-    font-size: 11px;
-    line-height: 1.45;
-  }
-
-  .data-status .regenerate-data {
-    display: block;
-    margin-top: 7px;
-    border: 1px solid #5e8056;
-    border-radius: 5px;
-    background: #243a27;
-    color: #eff9e7;
-    padding: 5px 8px;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .data-status .regenerate-data:hover:not(:disabled) {
-    background: #355541;
-  }
-
-  .data-status .regenerate-data:disabled {
-    cursor: wait;
-    opacity: .65;
-  }
-
-  .data-status.stale i { background: #e4ad55; }
-
-  .ls-change-warning {
-    display: grid;
-    gap: 4px;
-    width: 100%;
-    border: 1px solid #936c25;
-    border-radius: 8px;
-    padding: 10px;
-    background: #fff2bd;
-    color: #49370e;
-    text-align: left;
-  }
-
-  .simulation-run {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 14px;
-  }
-
-  .simulation-run button {
-    border: 1px solid #6a925d;
-    border-radius: 6px;
-    background: #263f2d;
-    color: #f4faee;
-    padding: 8px 11px;
-    font-weight: 700;
-  }
-
-  .simulation-run button:disabled {
-    cursor: wait;
-    opacity: .65;
-  }
-
-  .simulation-run small {
-    color: #aeb9b0;
-  }
-}
-
+/* Exposed to Tailwind so utility classes stay available alongside the
+   hand-written component layer. */
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
 
-  --color-fanta-bg: #101512;
-  --color-fanta-panel: #18221b;
-  --color-fanta-border: #405046;
-  --color-fanta-text: #e8eee7;
-  --color-fanta-muted: #aeb9b0;
-  --color-fanta-accent: #bce785;
+  --color-fanta-bg: #0b0d12;
+  --color-fanta-surface: #12151d;
+  --color-fanta-raised: #1d2230;
+  --color-fanta-border: #262c3a;
+  --color-fanta-text: #eceef3;
+  --color-fanta-muted: #99a2b3;
+  --color-fanta-brand: #7a7bff;
+  --color-fanta-go: #35d07f;
+  --color-fanta-warn: #ffb020;
+  --color-fanta-stop: #ff5d5d;
 }

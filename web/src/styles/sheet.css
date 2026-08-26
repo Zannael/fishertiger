@@ -1,0 +1,130 @@
+/*
+ * Sheets. Built on <dialog> so focus trapping, Esc and inertness come from the
+ * platform. On phones they rise from the bottom edge and stay within thumb
+ * reach; from 720px they become a centred panel.
+ */
+
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: 88dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--c-line);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.sheet::backdrop {
+  background: rgb(3 5 9 / 62%);
+  backdrop-filter: blur(2px);
+}
+
+.sheet[open] {
+  animation: sheet-rise var(--t-base) var(--ease);
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet[open] {
+    animation: none;
+  }
+}
+
+.sheet-inner {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: 88dvh;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--c-line-soft);
+}
+
+.sheet-head h2 {
+  min-width: 0;
+  font-size: var(--fs-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-head .icon-btn {
+  margin-left: auto;
+}
+
+.sheet-body {
+  padding: var(--s-4);
+  padding-bottom: calc(var(--s-4) + var(--safe-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sheet-body--flush {
+  padding: 0;
+  padding-bottom: var(--safe-bottom);
+}
+
+.sheet-foot {
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  padding-bottom: calc(var(--s-3) + var(--safe-bottom));
+  border-top: 1px solid var(--c-line-soft);
+  background: var(--c-surface);
+}
+
+.sheet-foot > .btn {
+  flex: 1 1 auto;
+}
+
+/* A grab handle reads as "this can be dismissed" on touch. */
+.sheet-grip {
+  width: 34px;
+  height: 4px;
+  margin: var(--s-2) auto 0;
+  border-radius: var(--r-pill);
+  background: var(--c-raised);
+}
+
+@media (min-width: 720px) {
+  .sheet {
+    max-width: 560px;
+    max-height: 82dvh;
+    margin: auto;
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-xl);
+  }
+
+  .sheet-inner {
+    max-height: 82dvh;
+  }
+
+  .sheet-grip {
+    display: none;
+  }
+}
+
+.sheet--wide {
+  max-width: 100%;
+}
+
+@media (min-width: 720px) {
+  .sheet--wide {
+    max-width: 760px;
+  }
+}

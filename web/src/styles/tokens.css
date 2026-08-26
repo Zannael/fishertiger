@@ -1,0 +1,117 @@
+/*
+ * Design tokens.
+ *
+ * Colour rule that the whole interface depends on: saturation carries meaning.
+ * Neutrals build the page, the brand indigo marks "where you are", and the three
+ * saturated semantics (go / warn / stop) are reserved for auction verdicts alone.
+ * Nothing decorative is allowed to use them, so a green block on screen always
+ * means "buy" and never "this is a heading".
+ */
+
+:root {
+  /* Surfaces, from the page canvas up to the most raised control. */
+  --c-canvas: #0b0d12;
+  --c-surface: #12151d;
+  --c-surface-2: #171b25;
+  --c-raised: #1d2230;
+  --c-hover: #242a3a;
+  --c-line: #262c3a;
+  --c-line-soft: #1b2029;
+
+  /* Text, three steps only. */
+  --c-text: #eceef3;
+  --c-text-dim: #99a2b3;
+  --c-text-mute: #6b7383;
+
+  /* Brand: navigation, focus, links. Never a verdict. */
+  --c-brand: #7a7bff;
+  --c-brand-bright: #9b9cff;
+  --c-brand-tint: rgb(122 123 255 / 14%);
+  --c-brand-line: rgb(122 123 255 / 34%);
+
+  /* Verdict semantics, reserved. */
+  --c-go: #35d07f;
+  --c-go-tint: rgb(53 208 127 / 14%);
+  --c-warn: #ffb020;
+  --c-warn-tint: rgb(255 176 32 / 14%);
+  --c-stop: #ff5d5d;
+  --c-stop-tint: rgb(255 93 93 / 14%);
+  --c-info: #52a8ff;
+  --c-info-tint: rgb(82 168 255 / 14%);
+
+  /* Roles keep the colours Italian fantacalcio players already read fluently. */
+  --c-role-p: #f2c14e;
+  --c-role-d: #56b8f5;
+  --c-role-c: #b583f5;
+  --c-role-a: #ff7a59;
+
+  /* Spacing, 4px base. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* Type. Numbers are tabular everywhere: columns of credits must line up. */
+  --font-ui: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-num: "SF Mono", ui-monospace, SFMono-Regular, "Cascadia Mono",
+    Consolas, monospace;
+
+  --fs-2xs: 0.625rem;
+  --fs-xs: 0.6875rem;
+  --fs-sm: 0.78125rem;
+  --fs-md: 0.875rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.1875rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: clamp(1.625rem, 5.5vw, 2.25rem);
+  --fs-display: clamp(2rem, 9vw, 2.75rem);
+
+  --lh-tight: 1.05;
+  --lh-snug: 1.3;
+  --lh-normal: 1.5;
+
+  --tracking-caps: 0.09em;
+  --tracking-tight: -0.02em;
+
+  /* Radii. */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* Depth. Shadows stay soft; the hairline does most of the separating. */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 6px 20px -6px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 18px 48px -18px rgb(0 0 0 / 70%);
+
+  /* Motion. */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --t-fast: 130ms;
+  --t-base: 210ms;
+
+  /* Minimum comfortable thumb target. Applied to every interactive control. */
+  --tap: 44px;
+
+  /* Chrome heights, used to offset sticky regions and scroll padding. */
+  --h-topbar: 52px;
+  --h-tabbar: 60px;
+  --w-rail: 232px;
+  --page-max: 1180px;
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-base: 0ms;
+  }
+}

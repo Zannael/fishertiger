@@ -1,24 +1,20 @@
 .league-settings {
-  --ink: #e8eee7;
-  --muted: #aeb9b0;
-  --line: #405046;
+  --ink: var(--c-text);
+  --muted: var(--c-text-dim);
+  --line: var(--c-line);
   --paper: transparent;
-  --panel: #151d18;
-  --panel-raised: #1c2821;
-  --input: #101512;
-  --lime: #d8f0a0;
-  --lime-ink: #112014;
-  --danger: #d38372;
+  --panel: var(--c-surface);
+  --panel-raised: var(--c-surface-2);
+  --input: var(--c-raised);
+  --lime: var(--c-brand);
+  --lime-ink: #0a0b12;
+  --danger: var(--c-stop);
   max-width: 1180px;
   margin: 0 auto;
   padding: 0;
   color: var(--ink);
   background: var(--paper);
-  font:
-    16px/1.45 Inter,
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font: var(--fs-md) / var(--lh-normal) var(--font-ui);
 }
 .ls-header {
   max-width: 650px;
@@ -36,9 +32,9 @@
 }
 .ls-header h1 {
   margin: 8px 0 18px;
-  font-size: clamp(36px, 5vw, 64px);
-  line-height: 0.98;
-  letter-spacing: -0.065em;
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
 }
 .ls-header p:last-child {
   margin: 0;
@@ -55,8 +51,8 @@
 }
 .ls-errors {
   border: 1px solid var(--danger);
-  border-radius: 9px;
-  background: #402923;
+  border-radius: var(--r-md);
+  background: var(--c-stop-tint);
   padding: 14px 18px;
   margin: 18px 0;
 }
@@ -66,16 +62,16 @@
 }
 .league-settings fieldset {
   min-width: 0;
-  margin: 28px 0;
-  padding: 26px 22px 24px;
+  margin: var(--s-4) 0;
+  padding: var(--s-5) var(--s-4);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   background: var(--panel);
 }
 .league-settings legend {
   padding: 0 8px;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: var(--fs-lg);
+  font-weight: 700;
 }
 .league-settings legend span {
   display: inline-grid;
@@ -85,7 +81,7 @@
   margin-right: 8px;
   background: var(--lime);
   color: var(--lime-ink);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   font:
     700 12px ui-monospace,
     monospace;
@@ -113,9 +109,9 @@
 .ls-payouts input,
 .ls-tier input {
   width: 100%;
-  min-height: 42px;
-  border: 1px solid #526258;
-  border-radius: 6px;
+  min-height: var(--tap);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
   padding: 8px 10px;
   color: var(--ink);
   background: var(--input);
@@ -128,7 +124,7 @@
 .ls-team input:focus,
 .ls-payouts input:focus,
 .ls-tier input:focus {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 1px;
   border-color: var(--lime);
 }
@@ -138,7 +134,7 @@
   grid-column: 1 / -1;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--r-md);
   background: var(--panel-raised);
 }
 .ls-range-label {
@@ -159,13 +155,13 @@
 .ls-dual-range::before {
   right: 0;
   left: 0;
-  border-radius: 999px;
-  background: #405046;
+  border-radius: var(--r-pill);
+  background: var(--c-line);
 }
 .ls-dual-range::after {
   left: var(--range-start);
   width: calc(var(--range-end) - var(--range-start));
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--lime);
 }
 .ls-dual-range input[type="range"] {
@@ -220,11 +216,11 @@
   outline: none;
 }
 .ls-dual-range input[type="range"]:focus-visible::-webkit-slider-thumb {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 3px;
 }
 .ls-dual-range input[type="range"]:focus-visible::-moz-range-thumb {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 3px;
 }
 .ls-range-values {
@@ -271,7 +267,7 @@
 }
 .ls-text-button:disabled,
 .ls-remove:disabled {
-  color: #77857b;
+  color: var(--c-text-mute);
   cursor: not-allowed;
 }
 .ls-source {
@@ -308,23 +304,23 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #77857b;
+  background: var(--c-text-mute);
 }
 .ls-source-status.present {
-  color: var(--lime);
+  color: var(--c-go);
 }
 .ls-source-status.present i {
-  background: var(--lime);
+  background: var(--c-go);
 }
 .ls-source-status.missing {
-  color: #f1b7a8;
+  color: var(--c-stop);
 }
 .ls-source-status.missing i {
   background: var(--danger);
 }
 .ls-source-status.uploading i,
 .ls-source-status.checking i {
-  background: #d8be68;
+  background: var(--c-warn);
 }
 .league-settings .ls-upload {
   position: relative;
@@ -333,10 +329,10 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid #55715e;
-  border-radius: 7px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
   padding: 8px 14px;
-  background: #263a2d;
+  background: var(--c-brand-tint);
   color: var(--ink);
   cursor: pointer;
   font-size: 13px;
@@ -344,7 +340,7 @@
 }
 .ls-upload:hover {
   border-color: var(--lime);
-  background: #355541;
+  background: var(--c-hover);
 }
 .ls-upload input {
   position: absolute;
@@ -353,7 +349,7 @@
   opacity: 0;
 }
 .ls-upload:has(input:focus-visible) {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 2px;
 }
 .ls-upload:has(input:disabled) {
@@ -448,7 +444,7 @@
   margin-top: 24px;
   padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--r-md);
   background: var(--panel-raised);
 }
 .ls-static-rule strong {
@@ -472,7 +468,7 @@
 }
 .ls-options .ls-check {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-md);
   padding: 7px 10px;
   background: var(--panel-raised);
 }
@@ -484,7 +480,7 @@
   margin-top: 22px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--r-md);
   background: var(--panel-raised);
 }
 .ls-choice-card .ls-label {
@@ -503,13 +499,13 @@
   align-items: start;
   padding: 9px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-md);
   background: var(--panel);
 }
 .ls-invalid-choice {
   margin-top: 8px;
   border-color: var(--danger);
-  color: #f1b7a8;
+  color: var(--c-stop);
   font-weight: 800;
 }
 .ls-order-actions {
@@ -518,8 +514,8 @@
 }
 .ls-order-actions button {
   border: 1px solid var(--line);
-  border-radius: 5px;
-  background: #263429;
+  border-radius: var(--r-sm);
+  background: var(--c-hover);
   color: var(--ink);
   padding: 3px 8px;
   font: inherit;
@@ -527,7 +523,7 @@
   font-weight: 800;
 }
 .ls-order-actions button:focus-visible {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 2px;
 }
 .ls-toggle {
@@ -558,31 +554,31 @@
 .ls-actions button {
   min-height: 46px;
   border: 1px solid var(--lime);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   padding: 10px 18px;
   background: var(--lime);
   color: var(--lime-ink);
   font-weight: 900;
 }
 .ls-actions .ls-generate {
-  border-color: #55715e;
-  background: #263a2d;
+  border-color: var(--c-line);
+  background: var(--c-brand-tint);
   color: var(--ink);
 }
 .ls-actions button:disabled {
   border-color: var(--line);
-  background: #202a23;
-  color: #77857b;
+  background: var(--c-surface-2);
+  color: var(--c-text-mute);
   cursor: not-allowed;
 }
 .ls-actions button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 45%);
 }
 .ls-actions button:focus-visible,
 .ls-text-button:focus-visible,
 .ls-remove:focus-visible {
-  outline: 3px solid #cbff8b;
+  outline: 2px solid var(--c-brand-bright);
   outline-offset: 3px;
 }
 @media (max-width: 700px) {

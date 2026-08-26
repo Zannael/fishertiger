@@ -375,7 +375,7 @@ export function RandomAuctionView({ data, rules, profileId }) {
             value={startingCredits}
             onChange={(event) => setStartingCredits(event.target.value)}
           />
-          <button type="button" onClick={startAuction}>
+          <button type="button" className="ra-primary" onClick={startAuction}>
             {auction ? "Nuova asta casuale" : "Avvia asta casuale"}
           </button>
         </div>

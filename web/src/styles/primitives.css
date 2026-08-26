@@ -1,0 +1,708 @@
+/* Reusable building blocks. Views compose these; they rarely invent their own. */
+
+/* ---------------------------------------------------------------- typography */
+
+.kicker {
+  display: block;
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.page-head {
+  display: grid;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.page-head h1 {
+  font-size: var(--fs-2xl);
+}
+
+.page-head p {
+  max-width: 62ch;
+  color: var(--c-text-dim);
+  font-size: var(--fs-md);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.section-head h2 {
+  font-size: var(--fs-lg);
+}
+
+.section-head .count {
+  color: var(--c-text-mute);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--c-text-dim);
+}
+
+.micro {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+}
+
+/* -------------------------------------------------------------------- card */
+
+.card {
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  padding: var(--s-4);
+}
+
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card--quiet {
+  background: var(--c-surface-2);
+  border-color: var(--c-line-soft);
+}
+
+.stack {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.stack--lg {
+  gap: var(--s-5);
+}
+
+/* ------------------------------------------------------------------ button */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  color: var(--c-text);
+  font-size: var(--fs-md);
+  font-weight: 620;
+  text-align: center;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--c-hover);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  border-color: transparent;
+  background: var(--c-brand);
+  color: #0a0b12;
+  font-weight: 700;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--c-brand-bright);
+}
+
+.btn--go {
+  border-color: transparent;
+  background: var(--c-go);
+  color: #062314;
+  font-weight: 700;
+}
+
+.btn--go:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--c-text-dim);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.btn--danger {
+  border-color: rgb(255 93 93 / 32%);
+  background: var(--c-stop-tint);
+  color: #ffc9c9;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--sm {
+  min-height: 34px;
+  padding: 0 var(--s-3);
+  font-size: var(--fs-sm);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.btn-row > .btn {
+  flex: 1 1 auto;
+}
+
+/* ------------------------------------------------------------- role + status */
+
+/* Role chips are tinted rather than filled: they label, they do not shout. */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--role-color) 18%, transparent);
+  color: var(--role-color);
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.role-chip--lg {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+}
+
+.role-P {
+  --role-color: var(--c-role-p);
+}
+
+.role-D {
+  --role-color: var(--c-role-d);
+}
+
+.role-C {
+  --role-color: var(--c-role-c);
+}
+
+.role-A {
+  --role-color: var(--c-role-a);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-raised);
+  color: var(--c-text-dim);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pill--go {
+  background: var(--c-go-tint);
+  color: var(--c-go);
+}
+
+.pill--warn {
+  background: var(--c-warn-tint);
+  color: var(--c-warn);
+}
+
+.pill--stop {
+  background: var(--c-stop-tint);
+  color: var(--c-stop);
+}
+
+.pill--info {
+  background: var(--c-info-tint);
+  color: var(--c-info);
+}
+
+.pill--brand {
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* --------------------------------------------------------------------- stat */
+
+.stat {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 0;
+}
+
+.stat-label {
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 660;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: var(--fs-xl);
+  font-weight: 680;
+  line-height: 1.1;
+  letter-spacing: var(--tracking-tight);
+}
+
+.stat-value small {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.stat-note {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+@media (min-width: 640px) {
+  .stat-grid--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------- fields */
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-label {
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 660;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.field-help {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  color: var(--c-text);
+  font-size: var(--fs-md);
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--c-text-mute);
+}
+
+.input:hover,
+.select:hover {
+  border-color: var(--c-hover);
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--c-brand);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--c-brand-tint);
+}
+
+.select {
+  appearance: none;
+  padding-right: var(--s-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--c-text-dim) 50%),
+    linear-gradient(135deg, var(--c-text-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 1px),
+    calc(100% - 13px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* --------------------------------------------------------------- segmented */
+
+/* Every "two or three mutually exclusive modes" choice uses this, so the
+   pattern only has to be learned once. */
+.segmented {
+  display: flex;
+  width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.segmented button {
+  flex: 1 1 0;
+  min-width: max-content;
+  min-height: 38px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 660;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.segmented button:hover {
+  color: var(--c-text);
+}
+
+.segmented button.is-active {
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+  box-shadow: inset 0 0 0 1px var(--c-brand-line);
+}
+
+/* Full width is right under the thumb; on a desktop it would stretch three
+   labels across a thousand pixels. */
+@media (min-width: 720px) {
+  .segmented {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .segmented button {
+    flex: 0 1 auto;
+  }
+}
+
+/* ------------------------------------------------------------- chip scroller */
+
+/* Horizontal rail for long flat lists (Serie A clubs, filters). It bleeds to the
+   screen edge on phones so it reads as scrollable without needing a scrollbar. */
+.chip-rail {
+  display: flex;
+  gap: var(--s-2);
+  padding-inline: var(--s-4);
+  margin-inline: calc(var(--s-4) * -1);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 620;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.chip:hover {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+.chip.is-active {
+  border-color: var(--c-brand-line);
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+}
+
+/* ---------------------------------------------------------------- list rows */
+
+.rows {
+  display: grid;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px var(--s-4);
+  border-top: 1px solid var(--c-line-soft);
+  color: inherit;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.rows > .row:first-child {
+  border-top: 0;
+}
+
+.row:hover {
+  background: var(--c-surface-2);
+}
+
+.row.is-selected {
+  background: var(--c-brand-tint);
+  box-shadow: inset 3px 0 0 var(--c-brand);
+}
+
+.row-main {
+  min-width: 0;
+}
+
+.row-title {
+  display: block;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  display: block;
+  overflow: hidden;
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-value {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.row-rank {
+  width: 20px;
+  color: var(--c-text-mute);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  text-align: right;
+}
+
+/* --------------------------------------------------------------- disclosure */
+
+/* Progressive disclosure is how the redesign keeps depth without clutter:
+   secondary analysis lives in here, closed by default. */
+.disclosure {
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+}
+
+.disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  color: var(--c-text);
+  font-size: var(--fs-sm);
+  font-weight: 660;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-left: var(--s-2);
+  border-right: 2px solid var(--c-text-mute);
+  border-bottom: 2px solid var(--c-text-mute);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.disclosure[open] > summary::after {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.disclosure > summary:hover {
+  background: var(--c-surface-2);
+}
+
+.summary-badge {
+  margin-left: auto;
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.disclosure-body {
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border-top: 1px solid var(--c-line-soft);
+}
+
+/* ------------------------------------------------------------------ bullets */
+
+.bullets {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bullets li {
+  position: relative;
+  padding-left: var(--s-4);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+
+.bullets li::before {
+  content: "";
+  position: absolute;
+  top: 0.55em;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bullet-color, var(--c-text-mute));
+}
+
+.bullets--warn {
+  --bullet-color: var(--c-warn);
+}
+
+/* ------------------------------------------------------------------- notice */
+
+.notice {
+  display: block;
+  padding: var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+
+.notice--go {
+  border-color: rgb(53 208 127 / 30%);
+  background: var(--c-go-tint);
+  color: #b6f2d3;
+}
+
+.notice--warn {
+  border-color: rgb(255 176 32 / 30%);
+  background: var(--c-warn-tint);
+  color: #ffe0ab;
+}
+
+.notice--stop {
+  border-color: rgb(255 93 93 / 30%);
+  background: var(--c-stop-tint);
+  color: #ffc9c9;
+}
+
+.notice--info {
+  border-color: rgb(82 168 255 / 26%);
+  background: var(--c-info-tint);
+  color: #c2dfff;
+}
+
+/* --------------------------------------------------------------- empty state */
+
+.empty {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-8) var(--s-4);
+  color: var(--c-text-mute);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.empty strong {
+  color: var(--c-text-dim);
+  font-size: var(--fs-md);
+}

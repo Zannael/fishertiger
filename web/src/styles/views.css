@@ -1,0 +1,610 @@
+/* Screen-specific layout: summary, player list, clubs, set pieces, simulation. */
+
+/* ----------------------------------------------------------------- summary */
+
+.hero {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(
+      120% 140% at 100% 0%,
+      rgb(122 123 255 / 15%) 0%,
+      transparent 58%
+    ),
+    var(--c-surface);
+}
+
+.hero h1 {
+  font-size: var(--fs-3xl);
+  letter-spacing: -0.035em;
+}
+
+.hero p {
+  max-width: 46ch;
+  color: var(--c-text-dim);
+  font-size: var(--fs-md);
+}
+
+.hero-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-line-soft);
+}
+
+.hero-figures .stat-value {
+  font-size: var(--fs-lg);
+}
+
+/* Role counters: the four-colour code, introduced on the very first screen. */
+.role-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+.role-tile {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.role-tile:hover {
+  background: var(--c-surface-2);
+}
+
+.role-tile b {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.role-tile small {
+  color: var(--c-text-mute);
+  font-size: 9.5px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  hyphens: auto;
+}
+
+@media (min-width: 720px) {
+  .overview-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-3);
+    align-items: start;
+  }
+}
+
+.club-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+@media (min-width: 560px) {
+  .club-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .club-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.club-tile {
+  display: grid;
+  gap: 3px;
+  padding: var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.club-tile:hover {
+  background: var(--c-surface-2);
+}
+
+.club-tile strong {
+  font-size: var(--fs-sm);
+  font-weight: 660;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-tile small {
+  color: var(--c-text-mute);
+  font-family: var(--font-num);
+  font-size: var(--fs-2xs);
+}
+
+/* Two thin bars beat two numbers: attack and defence ratings are comparative. */
+.meter {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  color: var(--c-text-mute);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.meter-track {
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--c-raised);
+}
+
+.meter-track > i {
+  display: block;
+  width: var(--pct, 0%);
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--meter-color, var(--c-brand));
+}
+
+/* ------------------------------------------------------------- player list */
+
+.filters {
+  display: grid;
+  gap: var(--s-2);
+  position: sticky;
+  z-index: 15;
+  top: calc(var(--h-topbar) + var(--safe-top));
+  margin-inline: calc(var(--s-4) * -1);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--c-line-soft);
+  background: var(--c-canvas);
+}
+
+.filters-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+}
+
+.filters-count {
+  align-self: center;
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* Roles as a segmented control rather than a dropdown: it is the filter people
+   use constantly, and it costs one tap instead of three. */
+.role-filter button.is-active[data-role="P"] {
+  background: color-mix(in srgb, var(--c-role-p) 16%, transparent);
+  color: var(--c-role-p);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-role-p) 34%, transparent);
+}
+
+.role-filter button.is-active[data-role="D"] {
+  background: color-mix(in srgb, var(--c-role-d) 16%, transparent);
+  color: var(--c-role-d);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-role-d) 34%, transparent);
+}
+
+.role-filter button.is-active[data-role="C"] {
+  background: color-mix(in srgb, var(--c-role-c) 16%, transparent);
+  color: var(--c-role-c);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-role-c) 34%, transparent);
+}
+
+.role-filter button.is-active[data-role="A"] {
+  background: color-mix(in srgb, var(--c-role-a) 16%, transparent);
+  color: var(--c-role-a);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-role-a) 34%, transparent);
+}
+
+.list-head {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  border-bottom: 1px solid var(--c-line-soft);
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 660;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.player-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.player-row .row-value {
+  min-width: 44px;
+}
+
+.player-metric {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+}
+
+.player-metric b {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.player-metric small {
+  color: var(--c-text-mute);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Availability is shown as a coloured dot next to the name on phones and gains
+   its label from 480px, instead of stealing a whole column. */
+.avail {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--c-text-mute);
+  vertical-align: middle;
+}
+
+.avail--good {
+  background: var(--c-go);
+}
+
+.avail--caution {
+  background: var(--c-warn);
+}
+
+@media (min-width: 1000px) {
+  .players-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.7fr);
+    gap: var(--s-4);
+    align-items: start;
+  }
+
+  .players-split > .player-detail-panel {
+    position: sticky;
+    top: calc(var(--h-topbar) + var(--safe-top) + var(--s-4));
+    max-height: calc(100dvh - var(--h-topbar) - var(--s-8));
+    overflow-y: auto;
+  }
+
+  .filters {
+    position: static;
+    margin: 0;
+    padding: 0 0 var(--s-3);
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ----------------------------------------------------------- player detail */
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.detail-head h2 {
+  font-size: var(--fs-2xl);
+}
+
+.detail-head p {
+  color: var(--c-text-mute);
+  font-size: var(--fs-xs);
+}
+
+.detail-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.detail-figures > div {
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.quotes {
+  display: flex;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-block: 1px solid var(--c-line-soft);
+  font-size: var(--fs-sm);
+}
+
+.quotes b {
+  font-family: var(--font-num);
+  font-weight: 700;
+}
+
+.trend-up {
+  color: var(--c-go);
+}
+
+.trend-down {
+  color: var(--c-stop);
+}
+
+/* Season history as a compact table; tabular numerals keep the columns honest. */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+}
+
+.history-table th {
+  padding: 0 0 6px;
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+  font-weight: 660;
+  letter-spacing: 0.05em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.history-table th:first-child,
+.history-table td:first-child {
+  text-align: left;
+}
+
+.history-table td {
+  padding: 6px 0;
+  border-top: 1px solid var(--c-line-soft);
+  color: var(--c-text-dim);
+  text-align: right;
+}
+
+.history-table td:first-child {
+  color: var(--c-text);
+  font-family: var(--font-num);
+  font-weight: 640;
+}
+
+/* ------------------------------------------------------------------- clubs */
+
+.club-hero {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(
+      120% 130% at 0% 0%,
+      rgb(122 123 255 / 12%) 0%,
+      transparent 60%
+    ),
+    var(--c-surface);
+}
+
+.club-hero h2 {
+  font-size: var(--fs-2xl);
+}
+
+.club-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+/* 38 fixtures in one compact strip: alternation and difficulty read at a glance. */
+.fixtures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 4px;
+}
+
+.fixture {
+  display: grid;
+  gap: 1px;
+  padding: 6px 4px;
+  border-radius: var(--r-sm);
+  background: var(--c-surface-2);
+  font-size: var(--fs-2xs);
+  line-height: 1.2;
+}
+
+.fixture.is-home {
+  background: var(--c-brand-tint);
+  box-shadow: inset 0 0 0 1px var(--c-brand-line);
+}
+
+.fixture i {
+  color: var(--c-text-mute);
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.fixture b {
+  overflow: hidden;
+  font-size: var(--fs-2xs);
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  gap: var(--s-3);
+  color: var(--c-text-mute);
+  font-size: var(--fs-2xs);
+}
+
+.legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.legend .k-home {
+  background: var(--c-brand);
+}
+
+.legend .k-away {
+  background: var(--c-raised);
+}
+
+/* --------------------------------------------------------------- set pieces */
+
+.setpiece-groups {
+  display: grid;
+  gap: var(--s-2);
+}
+
+@media (min-width: 720px) {
+  .setpiece-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .setpiece-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.taker-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+
+.taker-line:hover {
+  background: var(--c-surface-2);
+}
+
+.taker-rank {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-sm);
+  background: var(--c-raised);
+  color: var(--c-text-mute);
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.taker-rank.is-first {
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+}
+
+.taker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------- simulation */
+
+.sim-row {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.sim-medal {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--c-raised);
+  color: var(--c-text-dim);
+  font-family: var(--font-num);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.sim-medal.is-podium {
+  background: var(--c-brand-tint);
+  color: var(--c-brand-bright);
+}
+
+.extremes {
+  display: grid;
+  gap: var(--s-2);
+}
+
+@media (min-width: 560px) {
+  .extremes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.extreme {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+}
+
+.extreme--best {
+  background: var(--c-go-tint);
+  color: #b6f2d3;
+}
+
+.extreme--worst {
+  background: var(--c-stop-tint);
+  color: #ffc9c9;
+}
+
+.extreme strong {
+  font-size: var(--fs-2xl);
+  font-weight: 720;
+  letter-spacing: -0.03em;
+}
+
+/* --------------------------------------------------------------- roster grid */
+
+.roster-grid {
+  display: grid;
+  gap: var(--s-1);
+}
+
+@media (min-width: 560px) {
+  .roster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .roster-grid--wide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.roster-grid .row {
+  border-top: 0;
+  border-radius: var(--r-sm);
+  padding-inline: var(--s-2);
+}
