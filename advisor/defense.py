@@ -20,3 +20,30 @@ def defense_modifier(goalkeeper_vote: float | None, defender_votes: list[float],
         if average >= threshold:
             bonus = value
     return bonus
+
+
+def expected_defense_modifier(
+    goalkeeper: tuple[float, float] | None,
+    defenders: list[tuple[float, float]],
+    table: str = "A",
+    tiers: tuple[tuple[float, float], ...] | None = None,
+    required_defenders: int = 4,
+) -> float:
+    """Return the expected modifier across independent player availability draws."""
+    if goalkeeper is None or len(defenders) < required_defenders:
+        return 0
+    goalkeeper_probability, goalkeeper_vote = goalkeeper
+    expected = 0.0
+    for mask in range(1 << len(defenders)):
+        probability = goalkeeper_probability
+        votes = []
+        for index, (availability, vote) in enumerate(defenders):
+            if mask & (1 << index):
+                probability *= availability
+                votes.append(vote)
+            else:
+                probability *= 1 - availability
+        expected += probability * defense_modifier(
+            goalkeeper_vote, votes, table, tiers, required_defenders
+        )
+    return expected

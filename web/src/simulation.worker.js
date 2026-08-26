@@ -4,6 +4,7 @@ import {
   projectedContribution,
   sourceFvm,
 } from "./player-valuation.js";
+import { expectedDefenseModifier } from "./defense-modifier.js";
 const EMPTY = -1e15;
 
 const finite = (value, fallback = 0) =>
@@ -15,7 +16,29 @@ const playerKey = (player) =>
     ? `${player?.nome || ""}|${player?.ruolo || ""}|${player?.squadra || ""}`
     : String(player.id);
 
-const contribution = projectedContribution;
+const contribution = (player, rules) => projectedContribution(player, rules.horizons?.currentLeague?.matchdayIndices);
+
+const defenseProfile = (player) => ({
+  probability: Array.isArray(player?.p_gioca_per_giornata) && player.p_gioca_per_giornata.length
+    ? player.p_gioca_per_giornata.reduce((sum, value) => sum + finite(value), 0) / player.p_gioca_per_giornata.length
+    : finite(player?.proiezione?.p_gioca),
+  vote: Array.isArray(player?.voto_puro_mean_per_giornata) && player.voto_puro_mean_per_giornata.length
+    ? player.voto_puro_mean_per_giornata.reduce((sum, value) => sum + finite(value), 0) / player.voto_puro_mean_per_giornata.length
+    : finite(player?.proiezione?.voto_puro),
+});
+
+const defenseValue = (roster, rules) => {
+  if (!rules.defenseModifier.enabled) return 0;
+  const goalkeepers = roster.filter((item) => item.ruolo === "P").sort((a, b) => defenseProfile(b).vote - defenseProfile(a).vote);
+  const defenders = roster.filter((item) => item.ruolo === "D").sort((a, b) => defenseProfile(b).vote - defenseProfile(a).vote);
+  const goalkeeper = goalkeepers[0];
+  if (!goalkeeper || defenders.length < rules.defenseModifier.requiredDefenders) return 0;
+  return expectedDefenseModifier({
+    ...rules.defenseModifier,
+    goalkeeper: defenseProfile(goalkeeper),
+    defenders: defenders.map(defenseProfile),
+  });
+};
 
 const roleNeeds = (team, rules) =>
   Object.fromEntries(
@@ -225,7 +248,7 @@ const estimatedCost = (
 
 // Returns the best exact-count value for every budget. Descending loops ensure
 // each available player can be selected only once.
-const roleFrontier = (players, count, budget, costFor) => {
+const roleFrontier = (players, count, budget, costFor, valueFor) => {
   const dp = Array.from({ length: count + 1 }, () => {
     const row = new Float64Array(budget + 1);
     row.fill(EMPTY);
@@ -235,7 +258,7 @@ const roleFrontier = (players, count, budget, costFor) => {
   for (const player of players) {
     const cost = costFor(player);
     if (cost > budget) continue;
-    const value = contribution(player);
+    const value = valueFor(player);
     for (let selected = count; selected >= 1; selected--) {
       const current = dp[selected];
       const previous = dp[selected - 1];
@@ -256,13 +279,13 @@ const roleFrontier = (players, count, budget, costFor) => {
   return result;
 };
 
-const completionFrontier = (pool, needs, budget, costFor) => {
+const completionFrontier = (pool, needs, budget, costFor, valueFor) => {
   let combined = new Float64Array(budget + 1);
   combined.fill(0);
   for (const role of Object.keys(needs)) {
     if (!needs[role]) continue;
     const rolePlayers = pool.filter((player) => player.ruolo === role);
-    const roleValues = roleFrontier(rolePlayers, needs[role], budget, costFor);
+    const roleValues = roleFrontier(rolePlayers, needs[role], budget, costFor, valueFor);
     const next = new Float64Array(budget + 1);
     next.fill(EMPTY);
     for (let credits = 0; credits <= budget; credits++) {
@@ -341,12 +364,13 @@ export const evaluateOverview = (data = {}) => {
   const costFor = (item) =>
     estimatedCost(item, market, scarcity, valuation.normalizedFvm);
   const budgetPlan = roleBudgetPlan(records, ownerIndex, needs, rules);
+  const valueFor = (player) => contribution(player, rules);
 
   const plans = Object.fromEntries(
     roles.map((role) => {
       const available = pool.filter((item) => item.ruolo === role);
       const planned = available
-        .map((item) => ({ value: contribution(item), cost: costFor(item) }))
+        .map((item) => ({ value: valueFor(item), cost: costFor(item) }))
         .sort((a, b) => b.value - a.value || a.cost - b.cost)
         .slice(0, needs[role]);
       return [
@@ -488,13 +512,14 @@ export const evaluateAuction = (data = {}) => {
     competition[player.ruolo],
   );
   const budgetPlan = roleBudgetPlan(records, ownerIndex, needs, rules);
+  const valueFor = (item) => contribution(item, rules);
   const roleBidCap = budgetPlan[player.ruolo].bidCap;
 
   const roleAlternatives = pool
     .filter((item) => item.ruolo === player.ruolo)
     .map((item) => ({
       player: item,
-      value: contribution(item),
+      value: valueFor(item),
       estimatedCost: costFor(item),
     }))
     .sort((a, b) => b.value - a.value || a.estimatedCost - b.estimatedCost);
@@ -504,8 +529,15 @@ export const evaluateAuction = (data = {}) => {
     : null;
   const replacement =
     replacementIndex == null ? null : roleAlternatives[replacementIndex];
-  const candidateValue = contribution(player);
-  const marginalValue = candidateValue - finite(replacement?.value);
+  const candidateValue = valueFor(player);
+  const individualMarginalValue = candidateValue - finite(replacement?.value);
+  const currentDefenseValue = defenseValue(team.roster || [], rules);
+  const candidateDefenseValue = defenseValue([...(team.roster || []), player], rules);
+  const alternativeDefenseValue = replacement
+    ? defenseValue([...(team.roster || []), replacement.player], rules)
+    : currentDefenseValue;
+  const defenseMarginalValue = candidateDefenseValue - alternativeDefenseValue;
+  const marginalValue = individualMarginalValue + defenseMarginalValue;
   const opponents = competition[player.ruolo];
   const qualityEdge = replacement
     ? marginalValue / Math.max(1, candidateValue, replacement.value)
@@ -521,9 +553,9 @@ export const evaluateAuction = (data = {}) => {
         ) *
           rules.auction.increment;
 
-  const baseline = completionFrontier(pool, needs, credits, costFor);
+  const baseline = completionFrontier(pool, needs, credits, costFor, valueFor);
   const withNeeds = { ...needs, [player.ruolo]: needs[player.ruolo] - 1 };
-  const withCandidate = completionFrontier(pool, withNeeds, credits, costFor);
+  const withCandidate = completionFrontier(pool, withNeeds, credits, costFor, valueFor);
   const baselineValue = baseline[credits];
   const baselineFeasible = baselineValue > EMPTY / 2;
   let maxBid = 0;
@@ -573,7 +605,8 @@ export const evaluateAuction = (data = {}) => {
     replacement
       ? `${rounded(candidateValue)} punti proiettati; margine di ${rounded(marginalValue)} sul cutoff del ruolo (${replacementIndex + 1}° tra i disponibili).`
       : `${rounded(candidateValue)} punti proiettati; nessuna alternativa disponibile nel ruolo.`,
-    `Limite ancorato al mercato a ${candidateCost} crediti, corretto per qualità relativa e fattibilità del completamento.`,
+     `Margine corretto: ${rounded(individualMarginalValue)} punti individuali + ${rounded(defenseMarginalValue)} punti modificatore difesa.`,
+     `Limite ancorato al mercato a ${candidateCost} crediti, corretto per qualità relativa e fattibilità del completamento.`,
     `Completamento ottimizzato rispettando ${openSlots} slot aperti e la riserva minima di ${Math.max(0, openSlots - 1) * rules.auction.reserve} crediti dopo l'acquisto.`,
     `Mercato osservato a ${market.inflation.toFixed(2)}x (${market.records.length} assegnazioni); ruolo ${player.ruolo} a ${market.roleInflation[player.ruolo].toFixed(2)}x.`,
     `${opponents.needing} avversari hanno ancora bisogno del ruolo; ${opponents.affordable} possono offrire almeno un credito oltre le proprie riserve.`,
@@ -609,7 +642,7 @@ export const evaluateAuction = (data = {}) => {
     roles.map((role) => {
       const available = pool.filter((item) => item.ruolo === role);
       const planned = available
-        .map((item) => ({ value: contribution(item), cost: costFor(item) }))
+        .map((item) => ({ value: valueFor(item), cost: costFor(item) }))
         .sort((a, b) => b.value - a.value || a.cost - b.cost)
         .slice(0, needs[role]);
       return [
@@ -661,7 +694,11 @@ export const evaluateAuction = (data = {}) => {
       slotsOpen: openSlots,
       reservedCredits:
         Math.max(0, openSlots - 1) * rules.auction.reserve,
-      candidateValue: rounded(candidateValue),
+       candidateValue: rounded(candidateValue),
+       individualMarginalValue: rounded(individualMarginalValue),
+       defenseMarginalValue: rounded(defenseMarginalValue),
+       defenseValueBefore: rounded(currentDefenseValue),
+       defenseValueWithCandidate: rounded(candidateDefenseValue),
       replacementValue: rounded(replacement?.value),
       replacementRank: replacementIndex == null ? null : replacementIndex + 1,
       marginalValue: rounded(marginalValue),
@@ -684,6 +721,7 @@ export const evaluateAuction = (data = {}) => {
       opponentDemand: opponents.needing,
       opponentAffordable: opponents.affordable,
       deterministic: true,
+      horizon: rules.horizons.currentLeague.label,
     },
   };
 };

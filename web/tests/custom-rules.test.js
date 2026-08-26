@@ -50,6 +50,18 @@ test("mock league uses supplied calendar and configured standings profile", () =
   assert.ok(standings.every((row) => row.points === row.wins * 2 + row.draws));
 });
 
+test("mock league uses canonical calendar matchdays and Serie A indexes", () => {
+  const events = generateRandomAuction(players, { rules, seed: "canonical-calendar" });
+  const canonicalCalendar = {
+    matchdays: [
+      { number: 1, serie_a_matchday: 2, fixtures: [{ home: "Arco", away: "Borgo" }, { home: "Cima", away: "Duna" }] },
+      { number: 2, serie_a_matchday: 1, fixtures: [{ home: "Arco", away: "Cima" }, { home: "Borgo", away: "Duna" }] },
+    ],
+  };
+  const standings = simulateMockLeague({ players, events, rules: { ...rules, calendario_lega: canonicalCalendar }, seed: 4 });
+  assert.ok(standings.every((row) => row.wins + row.draws + row.losses === 2));
+});
+
 test("worker plans custom roles and preserves the configured two-credit reserve", () => {
   const roster = players.filter((player) => player.ruolo === "P").slice(0, 1);
   const teams = [{ name: "Arco", credits: 30, roster }];

@@ -1,4 +1,5 @@
 import { normalizeRules } from "./league-rules.js";
+import { defenseModifierBonus, expectedDefenseModifier } from "./defense-modifier.js";
 
 const idKey = (id) => `${typeof id}:${String(id)}`;
 const finiteAt = (values, day, label, fallback = 0) => {
@@ -53,13 +54,21 @@ const generatedSchedule = (teamCount, days) => {
   return Array.from({ length: days }, (_, day) => { const fixtures = first[day % first.length]; return Math.floor(day / first.length) % 2 ? fixtures.map(([a, b]) => [b, a]) : fixtures; });
 };
 const calendarSchedule = (calendar, names) => {
+  if (Array.isArray(calendar?.matchdays)) return calendar.matchdays.map((round, index) => ({
+    day: Number(round.serie_a_matchday ?? round.serieAMatchday ?? index + 1) - 1,
+    fixtures: (round.fixtures || []).map((fixture) => {
+      const result = [names.indexOf(String(fixture.home)), names.indexOf(String(fixture.away))];
+      if (result.some((team) => team < 0)) throw new Error("Calendar references an unknown team");
+      return result;
+    }),
+  }));
   const rounds = Array.isArray(calendar) ? calendar : calendar?.giornate || calendar?.rounds || calendar?.fixtures;
   if (!Array.isArray(rounds)) return null;
   const indexFor = (team) => Number.isInteger(Number(team)) ? Number(team) : names.indexOf(String(team));
-  return rounds.map((round) => (Array.isArray(round) ? round : round.partite || round.matches || round.fixtures || []).map((fixture) => {
+  return rounds.map((round, day) => ({ day, fixtures: (Array.isArray(round) ? round : round.partite || round.matches || round.fixtures || []).map((fixture) => {
     const pair = Array.isArray(fixture) ? fixture : [fixture.home ?? fixture.casa ?? fixture.team1, fixture.away ?? fixture.trasferta ?? fixture.team2];
     const result = [indexFor(pair[0]), indexFor(pair[1])]; if (result.some((index) => index < 0 || index >= names.length)) throw new Error("Calendar references an unknown team"); return result;
-  }));
+  }) }));
 };
 
 export const chooseLineup = (roster, day, rules) => {
@@ -67,7 +76,16 @@ export const chooseLineup = (roster, day, rules) => {
   roster.forEach((player, order) => { if (byRole[player.ruolo]) { const values = playerValues(player, day); byRole[player.ruolo].push({ player, values, order, expected: values.probability * (values.vote + values.bonus) }); } });
   Object.values(byRole).forEach((items) => items.sort((a, b) => b.expected - a.expected || a.order - b.order));
   let best; let expected = -Infinity;
-  for (const formation of rules.formations) { const counts = countsFor(formation); const lineup = Object.entries(counts).flatMap(([role, count]) => byRole[role]?.slice(0, count) || []); const score = lineup.reduce((sum, item) => sum + item.expected, 0); if (lineup.length === 11 && score > expected) { best = lineup; expected = score; } }
+  for (const formation of rules.formations) {
+    const counts = countsFor(formation);
+    const lineup = Object.entries(counts).flatMap(([role, count]) => byRole[role]?.slice(0, count) || []);
+    const score = lineup.reduce((sum, item) => sum + item.expected, 0) + expectedDefenseModifier({
+      ...rules.defenseModifier,
+      goalkeeper: lineup.find((item) => item.player.ruolo === "P") && { probability: lineup.find((item) => item.player.ruolo === "P").values.probability, vote: lineup.find((item) => item.player.ruolo === "P").values.vote },
+      defenders: lineup.filter((item) => item.player.ruolo === "D").map((item) => ({ probability: item.values.probability, vote: item.values.vote })),
+    });
+    if (lineup.length === 11 && score > expected) { best = lineup; expected = score; }
+  }
   if (!best && rules.incompleteLineup === "error") throw new Error("Roster cannot field an allowed formation");
   const starters = best || roster.slice(0, 11).map((player, order) => ({ player, order, values: playerValues(player, day), expected: 0 }));
   const starterIds = new Set(starters.map((item) => idKey(item.player.id)));
@@ -89,10 +107,20 @@ export const scoreTeam = (selection, random, rules) => {
     const replacement = bench.find((item) => !item.used && item.played && item.player.ruolo === missing.player.ruolo);
     if (replacement) { replacement.used = true; substitutions++; missing.player = replacement.player; missing.values = replacement.values; missing.played = true; }
   }
-  const scored = active.filter((item) => item.played).map((item) => ({ ...item, points: Math.max(4, Math.min(10, item.values.vote + normal(random) * item.values.deviation)) + item.values.bonus + (item.player.ruolo === "P" ? item.values.conceded * Number(rules.scoring.goalkeeperConceded || 0) : 0) }));
-  const defenderVotes = scored.filter((item) => item.player.ruolo === "D").map((item) => item.points).sort((a, b) => b - a);
-  const tier = rules.defenseModifier.enabled && rules.defenseModifier.tiers.find((item) => defenderVotes.length >= rules.defenseModifier.requiredDefenders && (defenderVotes.reduce((sum, vote) => sum + vote, 0) / defenderVotes.length) >= Number(item.min ?? item.threshold ?? item.media ?? Infinity));
-  return { score: scored.reduce((sum, item) => sum + item.points, 0) + Number(tier?.bonus ?? tier?.points ?? 0), scored };
+  const scored = active.filter((item) => item.played).map((item) => {
+    const pureVote = Math.max(4, Math.min(10, item.values.vote + normal(random) * item.values.deviation));
+    return { ...item, pureVote, points: pureVote + item.values.bonus + (item.player.ruolo === "P" ? item.values.conceded * Number(rules.scoring.goalkeeperConceded || 0) : 0) };
+  });
+  if (scored.length !== 11) {
+    if (["zero_score", "forfeit"].includes(rules.incompleteLineup)) return { score: Number(rules.incompleteLineupScore || 0), scored };
+    return { score: scored.reduce((sum, item) => sum + item.points, 0), scored };
+  }
+  const modifier = defenseModifierBonus({
+    ...rules.defenseModifier,
+    goalkeeperVote: scored.find((item) => item.player.ruolo === "P")?.pureVote,
+    defenderVotes: scored.filter((item) => item.player.ruolo === "D").map((item) => item.pureVote),
+  });
+  return { score: scored.reduce((sum, item) => sum + item.points, 0) + modifier, scored };
 };
 const goals = (score, rules) => score < rules.virtualGoals.threshold ? 0 : 1 + Math.floor((score - rules.virtualGoals.threshold) / rules.virtualGoals.increment);
 
@@ -110,11 +138,11 @@ export const simulateMockLeague = ({ players, events, teamNames, seed, matchdays
   if (!Array.isArray(players) || !Array.isArray(events)) throw new TypeError("players and events must be arrays");
   const rules = normalizeRules({ ...suppliedRules, calendario_lega: suppliedRules?.calendario_lega ?? calendario_lega }); const names = teamNames || rules.teamNames;
   if (!Array.isArray(names) || names.length !== rules.participants || new Set(names).size !== names.length) throw new Error(`teamNames must contain ${rules.participants} unique names`);
-  const schedule = calendarSchedule(rules.calendar, names) || generatedSchedule(names.length, matchdays ?? 36);
+  const schedule = calendarSchedule(rules.calendar, names) || generatedSchedule(names.length, matchdays ?? 36).map((fixtures, day) => ({ fixtures, day }));
   const rosters = reconstructRosters(players, events, names, rules); const random = randomFor(seed);
   const table = names.map((team) => ({ team, points: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, fantasyPoints: 0 }));
   const directPoints = names.map(() => Array(names.length).fill(0));
-  schedule.forEach((fixtures, day) => {
+  schedule.forEach(({ fixtures, day }) => {
     const results = rosters.map((roster) => scoreTeam(chooseLineup(roster, day, rules), random, rules));
     results.forEach((result, team) => { table[team].fantasyPoints += result.score; });
     fixtures.forEach(([home, away]) => { const homeGoals = goals(results[home].score, rules); const awayGoals = goals(results[away].score, rules); Object.assign(table[home], { goalsFor: table[home].goalsFor + homeGoals, goalsAgainst: table[home].goalsAgainst + awayGoals }); Object.assign(table[away], { goalsFor: table[away].goalsFor + awayGoals, goalsAgainst: table[away].goalsAgainst + homeGoals }); let homePoints; let awayPoints; if (homeGoals > awayGoals) { table[home].wins++; table[away].losses++; homePoints = rules.standings.win; awayPoints = rules.standings.loss; } else if (awayGoals > homeGoals) { table[away].wins++; table[home].losses++; homePoints = rules.standings.loss; awayPoints = rules.standings.win; } else { table[home].draws++; table[away].draws++; homePoints = awayPoints = rules.standings.draw; } table[home].points += homePoints; table[away].points += awayPoints; directPoints[home][away] += homePoints; directPoints[away][home] += awayPoints; });

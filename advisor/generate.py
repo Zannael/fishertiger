@@ -74,6 +74,7 @@ def generate_dataset(
     return {
         "profile_id": profile.profile_id,
         "profile_hash": profile.configuration_hash,
+        "profile": profile.to_dict() if hasattr(profile, "to_dict") else None,
         "dataset_path": path,
         "dataset_manifest": manifest,
     }

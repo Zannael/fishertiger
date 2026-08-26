@@ -216,23 +216,26 @@ function App() {
     }
     const request = claimProfileRequest();
     let saveWarning = "";
-    let saved = false;
+    // The PUT response is the profile as the API validated it, so state and
+    // generation both use the stored version rather than the local edit.
+    let savedProfile = null;
     try {
-      await saveProfile(nextProfile, { apiBase });
-      saved = true;
+      const stored = await saveProfile(nextProfile, { apiBase });
+      savedProfile = stored?.profile_id ? stored : nextProfile;
       setProfiles((current) =>
-        current.includes(nextProfile.profile_id)
+        current.includes(savedProfile.profile_id)
           ? current
-          : [...current, nextProfile.profile_id].sort(),
+          : [...current, savedProfile.profile_id].sort(),
       );
     } catch (error) {
       saveWarning = `Profilo non salvato su disco: ${
         error instanceof Error ? error.message : "errore sconosciuto"
       }.`;
     }
+    const activeProfile = savedProfile || nextProfile;
     if (!isCurrentProfileRequest(request)) return;
-    if (saved) writeStoredProfileId(nextProfile.profile_id);
-    setProfile(nextProfile);
+    if (savedProfile) writeStoredProfileId(activeProfile.profile_id);
+    setProfile(activeProfile);
     if (!generate) {
       if (saveWarning) {
         setProfileError(saveWarning);
@@ -244,7 +247,7 @@ function App() {
       const response = await fetch(apiUrl("/api/generate", apiBase), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: nextProfile }),
+        body: JSON.stringify({ profile: activeProfile }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.dataset_path)
@@ -253,7 +256,7 @@ function App() {
         );
       const nextData = await loadDatasetUrl(
         apiUrl(`/api/datasets/${payload.dataset_path}`, apiBase),
-        { profile: nextProfile },
+        { profile: activeProfile },
       );
       if (!isCurrentProfileRequest(request)) return;
       setData(nextData);
@@ -504,6 +507,15 @@ function App() {
         </section>
       </main>
     );
+  const datasetProfileHash = data.meta?.profile?.profile_hash;
+  const datasetState = datasetProfileHash && datasetProfileHash !== profile.configuration_hash
+    ? "dataset da rigenerare"
+    : data.meta?.profile?.source_fingerprints?.some((source) => source.exists === false)
+      ? "fonti cambiate"
+      : "dataset corrente";
+  const simulationState = season?.meta?.dataset_input_hash && season.meta.dataset_input_hash === data.meta?.profile?.dataset_input_hash
+    ? "simulazione corrente"
+    : "simulazione da aggiornare";
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -544,14 +556,19 @@ function App() {
           ))}
         </nav>
         {profilePicker}
-        <div className="data-status">
+        <div
+          className={`data-status ${
+            datasetState === "dataset corrente" ? "current" : "stale"
+          }`}
+        >
           <i />
-          Dati aggiornati
+          {datasetState}
           <br />
           <small>
             {generationStatus ||
-              data.meta?.generato_il?.slice(0, 10) ||
-              "profilo locale"}
+              `${simulationState} · ${
+                data.meta?.generato_il?.slice(0, 10) || "profilo locale"
+              }`}
           </small>
           <button
             className="regenerate-data"

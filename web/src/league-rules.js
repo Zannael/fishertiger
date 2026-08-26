@@ -73,6 +73,7 @@ export const normalizeRules = (input = {}) => {
   const virtualGoals = object(source.virtualGoals || source.virtual_goals || source.gol_virtuali);
   const defense = object(source.defenseModifier || source.defense_modifier || source.modificatore_difesa);
   const standings = object(source.standings || source.classifica);
+  const horizons = object(source.horizons || source.orizzonti);
   const validTieBreakers = new Set(["goal_difference", "head_to_head", "season_fantasy_score"]);
   const requestedTieBreakers = Array.isArray(standings.tieBreakers || standings.tie_breakers) ? standings.tieBreakers || standings.tie_breakers : LEGACY_RULES.standings.tieBreakers;
   const tieBreakers = [...new Set(requestedTieBreakers.filter((rule) => validTieBreakers.has(rule)))];
@@ -92,9 +93,10 @@ export const normalizeRules = (input = {}) => {
     },
     scoring: { ...LEGACY_RULES.scoring, ...scoring, goalkeeperConceded: Number(scoring.goalkeeperConceded ?? scoring.goalkeeper_conceded ?? scoring.portiere_gol_subiti ?? LEGACY_RULES.scoring.goalkeeperConceded) },
     virtualGoals: { threshold: Number(virtualGoals.threshold ?? virtualGoals.soglia ?? LEGACY_RULES.virtualGoals.threshold), increment: Number(virtualGoals.increment ?? virtualGoals.scatto ?? LEGACY_RULES.virtualGoals.increment) },
-    defenseModifier: { enabled: defense.enabled === true, requiredDefenders: integer(defense.requiredDefenders ?? defense.difensori_richiesti, LEGACY_RULES.defenseModifier.requiredDefenders), tiers: Array.isArray(defense.tiers || defense.fasce) ? defense.tiers || defense.fasce : [] },
+    defenseModifier: { enabled: defense.enabled === true, tableName: defense.tableName ?? defense.table_name, requiredDefenders: integer(defense.requiredDefenders ?? defense.difensori_richiesti, LEGACY_RULES.defenseModifier.requiredDefenders, 1), tiers: Array.isArray(defense.tiers || defense.fasce) ? defense.tiers || defense.fasce : [] },
     standings: { win: Number(standings.win ?? standings.vittoria ?? 3), draw: Number(standings.draw ?? standings.pareggio ?? 1), loss: Number(standings.loss ?? standings.sconfitta ?? 0), tieBreakers: tieBreakers.length ? tieBreakers : LEGACY_RULES.standings.tieBreakers, exactTie: standings.exactTie ?? standings.exact_tie ?? LEGACY_RULES.standings.exactTie },
     incompleteLineup: object(source.incompleteLineup ?? source.incomplete_lineup ?? source.formazione_incompleta).policy ?? source.incompleteLineup ?? source.incomplete_lineup ?? source.formazione_incompleta ?? LEGACY_RULES.incompleteLineup,
+    incompleteLineupScore: Number(object(source.incompleteLineup ?? source.incomplete_lineup ?? source.formazione_incompleta).score ?? 0),
     auction: {
       minPrice: integer(auction.minPrice ?? auction.prezzo_minimo, LEGACY_RULES.auction.minPrice, 1),
       increment: integer(auction.increment ?? auction.rilancio, LEGACY_RULES.auction.increment, 1),
@@ -111,5 +113,9 @@ export const normalizeRules = (input = {}) => {
           : LEGACY_RULES.auction.roleBudgetFlexibilityPercent,
     },
     calendar: source.calendario_lega ?? source.calendar,
+    horizons: {
+      historical: { matchdays: integer(object(horizons.historical).matchdays, 38, 1), label: object(horizons.historical).label || `storico ${integer(object(horizons.historical).matchdays, 38, 1)}` },
+      currentLeague: { matchdayIndices: Array.isArray(object(horizons.currentLeague).matchdayIndices) ? object(horizons.currentLeague).matchdayIndices.filter((day) => Number.isInteger(day) && day >= 0) : [], label: object(horizons.currentLeague).label || "lega corrente" },
+    },
   };
 };

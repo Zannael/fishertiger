@@ -17,6 +17,7 @@ from rapidfuzz import fuzz
 from .config import LeagueConfig, ModelConfig
 from .league_calendar import preprocess_legacy_calendar, validate_calendar
 from .league_profile import LeagueProfile
+from .freshness import dataset_input_hash, source_fingerprints
 
 RAW = Path("data/raw")
 PROCESSED = Path("data/processed")
@@ -492,8 +493,14 @@ def build_projections(raw: Path = RAW, output: Path = PROCESSED, config: ModelCo
                     takers.append({"player_id": player["id"], "nome": player["nome"], "priorita": int(taker.priorita)})
             set_piece_records.append({"squadra": team_name, "team_id": normalize(team_name), "tipo": kind, "takers": sorted(takers, key=lambda item: item["priorita"])})
     league_rules = league_rules_payload(league)
-    profile_meta = {"profile_id": profile.profile_id, "profile_name": profile.name, "profile_hash": profile.configuration_hash, "season": profile.season.season} if profile else None
-    payload = {"schema_version": "1.0", "model_version": "1.5", "players": players, "teams": team_records, "set_pieces": set_piece_records, "league_rules": league_rules, "calendario_serie_a": calendar_records, "calendario_lega": league_calendar, "meta": {"generato_il": datetime.now(timezone.utc).isoformat(), "versione_modello": "1.5", "profile": profile_meta, "assunzioni": "75 minuti per voto; disponibilita da status e storico; malus portieri incluso; lineup auto nel simulatore"}}
+    fingerprints = source_fingerprints(profile, raw) if profile else []
+    profile_meta = {"profile_id": profile.profile_id, "profile_name": profile.name, "profile_hash": profile.configuration_hash, "dataset_input_hash": dataset_input_hash(profile, fingerprints), "source_fingerprints": fingerprints, "season": profile.season.season} if profile else None
+    current_matchdays = [day["serie_a_matchday"] for day in league_calendar["matchdays"]] if league_calendar else list(range(profile.season.fantasy_start_matchday, profile.season.fantasy_end_matchday + 1)) if profile else []
+    horizons = {
+        "historical": {"matchdays": config.season_days, "label": f"storico {config.season_days}"},
+        "current_league": {"serie_a_matchdays": current_matchdays, "label": f"lega corrente {len(current_matchdays)}"},
+    }
+    payload = {"schema_version": "1.0", "model_version": "1.5", "players": players, "teams": team_records, "set_pieces": set_piece_records, "league_rules": league_rules, "calendario_serie_a": calendar_records, "calendario_lega": league_calendar, "meta": {"generato_il": datetime.now(timezone.utc).isoformat(), "versione_modello": "1.5", "profile": profile_meta, "horizons": horizons, "assunzioni": "75 minuti per voto; disponibilita da status e storico; malus portieri incluso; lineup auto nel simulatore"}}
     with (output / "auction_data.json").open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, default=str, separators=(",", ":"), allow_nan=False)
     if web_export_dir is not None:

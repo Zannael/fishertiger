@@ -467,7 +467,7 @@ def _simulate_current_dataset(profile: Any, output_dir: Path, iterations: int, s
     from .simulate import run_simulation
     from .config import LeagueConfig
 
-    return run_simulation(output_dir, iterations=iterations, seed=seed, league=LeagueConfig.from_profile(profile))
+    return run_simulation(output_dir, iterations=iterations, seed=seed, league=LeagueConfig.from_profile(profile), profile=profile)
 
 
 def main(argv: list[str] | None = None) -> None:

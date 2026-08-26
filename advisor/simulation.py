@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .config import LeagueConfig
-from .defense import defense_modifier
+from .defense import defense_modifier, expected_defense_modifier
 
 @dataclass(frozen=True)
 class SimulationResult:
@@ -75,6 +75,24 @@ def _choose_lineup(available: list[dict[str, Any]], league: LeagueConfig) -> lis
             continue
         lineup = [player for role, count in counts.items() for player in by_role[role][:count]]
         value = sum(player["selection_value"] for player in lineup)
+        if league.defense_modifier_enabled:
+            keeper = next((
+                (player["availability"], player["pure_vote"])
+                for player in lineup
+                if player["ruolo"] == "P"
+            ), None)
+            defenders = [
+                (player["availability"], player["pure_vote"])
+                for player in lineup
+                if player["ruolo"] == "D"
+            ]
+            value += expected_defense_modifier(
+                keeper,
+                defenders,
+                league.defense_table,
+                league.defense_tiers,
+                league.defense_required_defenders,
+            )
         if value > best_value:
             best, best_value = lineup, value
     return best
@@ -113,7 +131,13 @@ def _team_score(roster: list[int], players: dict[int, dict[str, Any]], day_index
     for player_id in roster:
         player = players[player_id]
         probability = player["p_gioca_per_giornata"][day_index]
-        pre_lineup.append({"id": player_id, "ruolo": player["ruolo"], "selection_value": probability * (player["voto_puro_mean_per_giornata"][day_index] + player["bonus_atteso_per_giornata"][day_index])})
+        pre_lineup.append({
+            "id": player_id,
+            "ruolo": player["ruolo"],
+            "availability": probability,
+            "pure_vote": player["voto_puro_mean_per_giornata"][day_index],
+            "selection_value": probability * (player["voto_puro_mean_per_giornata"][day_index] + player["bonus_atteso_per_giornata"][day_index]),
+        })
     starters = _choose_lineup(pre_lineup, league)
     starter_ids = {player["id"] for player in starters}
     bench_pool = [player for player in pre_lineup if player["id"] not in starter_ids]

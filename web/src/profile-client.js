@@ -197,6 +197,13 @@ export const rulesFor = (profile, data = {}) => {
   const standings = object(source.standings);
   const auction = object(source.auction);
   const incomplete = object(source.incomplete_lineup);
+  const season = object(source.season);
+  const calendarMatchdays = Array.isArray(dataset.calendario_lega?.matchdays)
+    ? dataset.calendario_lega.matchdays.map((day) => Number(day.serie_a_matchday) - 1).filter((day) => Number.isInteger(day) && day >= 0)
+    : [];
+  const currentLeagueMatchdays = calendarMatchdays.length
+    ? calendarMatchdays
+    : Array.from({ length: Math.max(0, Number(season.fantasy_end_matchday) - Number(season.fantasy_start_matchday) + 1) }, (_, index) => Number(season.fantasy_start_matchday) - 1 + index);
   const profileRules = {
     participants: pick(participants.team_names?.length, fallback.participants),
     teamNames: pick(participants.team_names, fallback.teamNames || fallback.team_names),
@@ -232,6 +239,10 @@ export const rulesFor = (profile, data = {}) => {
       ),
     },
     calendar: dataset.calendario_lega || dataset.calendar || fallback.calendario_lega || fallback.calendar,
+    horizons: {
+      historical: { matchdays: pick(season.serie_a_matchdays, object(fallback.horizons).historical?.matchdays ?? 38), label: `storico ${pick(season.serie_a_matchdays, object(fallback.horizons).historical?.matchdays ?? 38)}` },
+      currentLeague: { matchdayIndices: currentLeagueMatchdays, label: `lega corrente ${currentLeagueMatchdays.length}` },
+    },
   };
   return normalizeRules(profileRules);
 };

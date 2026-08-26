@@ -18,7 +18,7 @@ const percentile = (sorted, value) =>
 export const sourceFvm = (player) =>
   finite(player?.fvm_original, finite(player?.fvm_scaled) / 0.75);
 
-export const projectedContribution = (player) => {
+export const projectedContribution = (player, matchdayIndices = null) => {
   const chances = Array.isArray(player?.p_gioca_per_giornata)
     ? player.p_gioca_per_giornata
     : [];
@@ -29,15 +29,18 @@ export const projectedContribution = (player) => {
     ? player.bonus_atteso_per_giornata
     : [];
   if (chances.length) {
-    return chances.reduce(
-      (sum, chance, day) =>
-        sum + finite(chance) * (finite(votes[day]) + finite(bonuses[day])),
+    const days = Array.isArray(matchdayIndices) && matchdayIndices.length
+      ? matchdayIndices
+      : chances.map((_, day) => day);
+    return days.reduce(
+      (sum, day) =>
+        sum + finite(chances[day]) * (finite(votes[day]) + finite(bonuses[day])),
       0,
     );
   }
   const projection = player?.proiezione || {};
   return (
-    38 *
+    (Array.isArray(matchdayIndices) && matchdayIndices.length ? matchdayIndices.length : 38) *
     finite(projection.p_gioca) *
     (finite(projection.voto_puro) + finite(projection.bonus))
   );
@@ -55,7 +58,7 @@ export const createRoleValuation = (players, rules) => {
         .filter((value) => value > 0)
         .sort((a, b) => a - b);
       const projectedValues = rolePlayers
-        .map(projectedContribution)
+        .map((player) => projectedContribution(player, rules.horizons?.currentLeague?.matchdayIndices))
         .sort((a, b) => a - b);
       const demand = participants * rules.rosterSlots[role];
       const pricedSupply = sourceValues.slice(-demand);
@@ -99,7 +102,7 @@ export const createRoleValuation = (players, rules) => {
     }
     const projectionRank = percentile(
       model.projectedValues,
-      projectedContribution(player),
+      projectedContribution(player, rules.horizons?.currentLeague?.matchdayIndices),
     );
     if (source <= model.q1 && projectionRank >= 0.8) {
       notices.push({

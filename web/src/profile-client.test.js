@@ -7,6 +7,7 @@ import {
   rulesFor,
   auctionDatasetPath,
 } from "./profile-client.js";
+import { projectedContribution } from "./player-valuation.js";
 
 const profile = {
   profile_id: "league-a",
@@ -40,6 +41,18 @@ test("accepts legacy payloads and resolves profile rules for league engines", ()
 test("normalizes extra formation strings for browser engines", () => {
   const rules = rulesFor({ ...profile, formations: { allowed: ["2-1-7", [6, 3, 1]] } });
   assert.deepEqual(rules.formations, [[2, 1, 7], [6, 3, 1]]);
+});
+
+test("keeps historical and current league horizons separate", () => {
+  const rules = rulesFor({
+    ...profile,
+    season: { serie_a_matchdays: 38, fantasy_start_matchday: 5, fantasy_end_matchday: 7 },
+  });
+
+  assert.equal(rules.horizons.historical.label, "storico 38");
+  assert.deepEqual(rules.horizons.currentLeague.matchdayIndices, [4, 5, 6]);
+  assert.equal(rules.horizons.currentLeague.label, "lega corrente 3");
+  assert.equal(projectedContribution({ p_gioca_per_giornata: [1, 1, 1, 1, 1, 1, 1], voto_puro_mean_per_giornata: [1, 1, 1, 1, 2, 2, 2], bonus_atteso_per_giornata: [0, 0, 0, 0, 0, 0, 0] }, rules.horizons.currentLeague.matchdayIndices), 6);
 });
 
 test("loads and normalizes a dataset URL through an injected fetch", async () => {

@@ -74,6 +74,20 @@
     opacity: .65;
   }
 
+  .data-status.stale i { background: #e4ad55; }
+
+  .ls-change-warning {
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    border: 1px solid #936c25;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff2bd;
+    color: #49370e;
+    text-align: left;
+  }
+
   .simulation-run {
     display: flex;
     align-items: center;
