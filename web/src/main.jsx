@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { Component, StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Download, Trash2, Upload } from "lucide-react";
 import "./index.css";
@@ -21,6 +21,7 @@ import {
 import {
   apiUrl,
   auctionDatasetPath,
+  datasetPathError,
   deleteProfile,
   listProfiles,
   parseProfileJson,
@@ -123,6 +124,15 @@ function App() {
   }, [apiBase]);
   useEffect(() => {
     if (!profile) return;
+    // Never let path building throw inside an effect: an uncaught throw here
+    // unmounts the whole tree and leaves a blank page.
+    const pathError = datasetPathError(profile);
+    if (pathError) {
+      setProfileError(pathError);
+      setData(null);
+      setSeason(null);
+      return;
+    }
     let cancelled = false;
     const datasetPath = auctionDatasetPath(profile);
     loadDatasetUrl(apiUrl(`/api/datasets/${datasetPath}`, apiBase), { profile })
@@ -190,8 +200,12 @@ function App() {
   const activeProfileId =
     profile?.profile_id || data?.meta?.profile?.profile_id || "default";
   const updateProfile = async (nextProfile, generate = false) => {
-    setProfile(nextProfile);
     setProfileError("");
+    const pathError = datasetPathError(nextProfile);
+    if (pathError) {
+      setProfileError(pathError);
+      throw new Error(pathError);
+    }
     let saveWarning = "";
     try {
       await saveProfile(nextProfile, { apiBase });
@@ -205,13 +219,16 @@ function App() {
       saveWarning = `Profilo non salvato su disco: ${
         error instanceof Error ? error.message : "errore sconosciuto"
       }.`;
-      // A failed save must not block a generation the user already asked for.
-      if (!generate) {
+    }
+    setProfile(nextProfile);
+    // A failed save must not block a generation the user already asked for.
+    if (!generate) {
+      if (saveWarning) {
         setProfileError(saveWarning);
         throw new Error(saveWarning);
       }
+      return;
     }
-    if (!generate) return;
     try {
       const response = await fetch(apiUrl("/api/generate", apiBase), {
         method: "POST",
@@ -2003,8 +2020,27 @@ function Auction({ data, openPlayer, rules, profileId, draft, setDraft }) {
   );
 }
 
+class AppErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <section className="app-crash">
+        <h1>Qualcosa è andato storto</h1>
+        <p>{this.state.error.message || "Errore inatteso."}</p>
+        <button onClick={() => window.location.reload()}>Ricarica l'app</button>
+      </section>
+    );
+  }
+}
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );

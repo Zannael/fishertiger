@@ -33,10 +33,24 @@ export const auctionDatasetPath = (profile) => {
 export const seasonSimulationPath = (profile) =>
   auctionDatasetPath(profile).replace("auction_data.json", "season_simulation.json");
 
+export const isValidProfileId = (value) =>
+  typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+
 const profileId = (value) => {
-  if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value))
+  if (!isValidProfileId(value))
     fail("invalid_profile_id", "Profile IDs may contain only letters, numbers, underscores, and hyphens.");
   return value;
+};
+
+export const datasetPathError = (profile) => {
+  try {
+    auctionDatasetPath(profile);
+    return "";
+  } catch (error) {
+    if (error instanceof ProfileClientError && error.code === "invalid_profile_id")
+      return "ID profilo non valido: sono ammessi solo lettere, numeri, underscore e trattini.";
+    return "Profilo non valido: ID e stagione sono obbligatori.";
+  }
 };
 
 async function requestJson(url, { fetchImpl = globalThis.fetch, ...options } = {}) {
@@ -209,12 +223,12 @@ export const rulesFor = (profile, data = {}) => {
       roleBudgetPercentages: pick(
         auction.role_budget_percentages,
         object(fallback.auction).roleBudgetPercentages ||
-          object(fallback.auction).role_budget_percentages,
+        object(fallback.auction).role_budget_percentages,
       ),
       roleBudgetFlexibilityPercent: pick(
         auction.role_budget_flexibility_percent,
         object(fallback.auction).roleBudgetFlexibilityPercent ??
-          object(fallback.auction).role_budget_flexibility_percent,
+        object(fallback.auction).role_budget_flexibility_percent,
       ),
     },
     calendar: dataset.calendario_lega || dataset.calendar || fallback.calendario_lega || fallback.calendar,

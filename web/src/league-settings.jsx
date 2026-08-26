@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { synchronizeFantasyRange } from "./league-settings-range.js";
 import { participantsFromCalendar } from "./league-calendar-teams.js";
+import { isValidProfileId } from "./profile-client.js";
 import {
   exactTiePolicies,
   incompleteLineupPolicies,
@@ -201,6 +202,10 @@ function validate(profile) {
       );
   };
   required(profile.profile_id, "ID profilo");
+  if (String(profile.profile_id ?? "").trim() && !isValidProfileId(profile.profile_id))
+    errors.push(
+      "L'ID profilo può contenere solo lettere, numeri, underscore e trattini.",
+    );
   required(profile.name, "Nome del profilo");
   required(profile.season.season, "Stagione");
   positive(profile.season.serie_a_matchdays, "Giornate di Serie A");

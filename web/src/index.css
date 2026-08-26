@@ -10,6 +10,22 @@
 @import "./league-settings.css" layer(components);
 
 @layer components {
+  .app-crash {
+    margin: 4rem auto;
+    max-width: 32rem;
+    padding: 2rem;
+    border: 1px solid var(--color-fanta-border);
+    border-radius: .75rem;
+    background: var(--color-fanta-panel);
+    color: var(--color-fanta-text);
+    text-align: center;
+  }
+
+  .app-crash p {
+    color: var(--color-fanta-muted);
+    margin: .75rem 0 1.25rem;
+  }
+
   .auction-advice {
     align-items: center !important;
   }
