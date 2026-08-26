@@ -312,8 +312,7 @@ function App() {
       );
       return;
     }
-    const remaining = profiles.filter((name) => name !== id);
-    setProfiles(remaining);
+    setProfiles((current) => current.filter((name) => name !== id));
     if (readStoredProfileId() === id) writeStoredProfileId("");
     if (profile?.profile_id === id) {
       const request = claimProfileRequest();

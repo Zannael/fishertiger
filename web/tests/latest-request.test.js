@@ -27,6 +27,18 @@ test("a reply that lands after a switch is rejected, the newer one is kept", () 
   assert.equal(gate.isCurrent(selectB), true, "B stays the active profile");
 });
 
+test("out-of-order completion: the slow earlier load loses to the fast later one", () => {
+  const gate = createRequestGate();
+  const loadA = gate.claim();
+  const loadB = gate.claim();
+  assert.equal(gate.isCurrent(loadB), true, "B commits when it answers");
+  assert.equal(
+    gate.isCurrent(loadA),
+    false,
+    "A must not overwrite the stored id or the active profile when it answers last",
+  );
+});
+
 test("gates are independent", () => {
   const one = createRequestGate();
   const two = createRequestGate();
