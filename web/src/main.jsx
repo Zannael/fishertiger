@@ -105,6 +105,7 @@ function App() {
   const claimProfileRequest = () => profileRequests.current.claim();
   const isCurrentProfileRequest = (request) =>
     profileRequests.current.isCurrent(request);
+  const latestProfileRequest = () => profileRequests.current.latest();
   useEffect(() => {
     let cancelled = false;
     const request = claimProfileRequest();
@@ -438,6 +439,7 @@ function App() {
   };
   const rerunSimulation = async () => {
     if (isSimulating) return;
+    const request = latestProfileRequest();
     setIsSimulating(true);
     setSimulationStatus("Simulazione in corso...");
     try {
@@ -449,10 +451,16 @@ function App() {
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error?.message || "Simulazione non completata.");
+      if (!isCurrentProfileRequest(request)) {
+        setSimulationStatus("");
+        return;
+      }
       setSeason(result);
       setSimulationStatus("Simulazione aggiornata.");
     } catch (error) {
-      setSimulationStatus("Simulazione non riuscita.");
+      setSimulationStatus(
+        isCurrentProfileRequest(request) ? "Simulazione non riuscita." : "",
+      );
     } finally {
       setIsSimulating(false);
     }

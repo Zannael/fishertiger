@@ -4,6 +4,7 @@ export const createRequestGate = () => {
   let current = 0;
   return {
     claim: () => ++current,
+    latest: () => current,
     isCurrent: (request) => request === current,
   };
 };

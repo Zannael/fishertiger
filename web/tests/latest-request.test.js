@@ -39,6 +39,29 @@ test("out-of-order completion: the slow earlier load loses to the fast later one
   );
 });
 
+test("latest() observes the request in force without superseding it", () => {
+  const gate = createRequestGate();
+  const generation = gate.claim();
+  const simulation = gate.latest();
+  assert.equal(simulation, generation);
+  assert.equal(gate.isCurrent(generation), true, "the generation still commits");
+  assert.equal(gate.isCurrent(simulation), true, "so does the simulation");
+});
+
+test("an observed request goes stale on the next profile switch", () => {
+  const gate = createRequestGate();
+  gate.claim();
+  const simulation = gate.latest();
+  gate.claim();
+  assert.equal(gate.isCurrent(simulation), false);
+});
+
+test("latest() is zero before anything is claimed, and matches nothing pending", () => {
+  const gate = createRequestGate();
+  assert.equal(gate.latest(), 0);
+  assert.equal(gate.isCurrent(gate.latest()), true);
+});
+
 test("gates are independent", () => {
   const one = createRequestGate();
   const two = createRequestGate();
