@@ -6,6 +6,7 @@ import RandomAuctionView from "./random-auction.jsx";
 import { LeagueSettings } from "./league-settings.jsx";
 import { normalizeRules } from "./league-rules.js";
 import { createRequestGate } from "./latest-request.js";
+import { datasetFreshness, simulationFreshness } from "./dataset-freshness.js";
 import { activeNominationRole } from "./auction-nomination.js";
 import {
   auctionStorageKey,
@@ -507,15 +508,8 @@ function App() {
         </section>
       </main>
     );
-  const datasetProfileHash = data.meta?.profile?.profile_hash;
-  const datasetState = datasetProfileHash && datasetProfileHash !== profile.configuration_hash
-    ? "dataset da rigenerare"
-    : data.meta?.profile?.source_fingerprints?.some((source) => source.exists === false)
-      ? "fonti cambiate"
-      : "dataset corrente";
-  const simulationState = season?.meta?.dataset_input_hash && season.meta.dataset_input_hash === data.meta?.profile?.dataset_input_hash
-    ? "simulazione corrente"
-    : "simulazione da aggiornare";
+  const datasetState = datasetFreshness(profile, data);
+  const simulationState = simulationFreshness(data, season);
   return (
     <main className="app-shell">
       <header className="app-header">

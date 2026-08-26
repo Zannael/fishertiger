@@ -28,6 +28,14 @@ from .generate import (
 )
 
 
+def profile_response(profile: Any) -> dict[str, Any]:
+    """The profile as the browser needs it: stored fields plus the derived hash the
+    dataset carries in its metadata, so the UI can tell a stale dataset from a
+    current one. `from_dict` ignores the extra key on the way back, and `to_dict`
+    stays hash-free so `configuration_hash` cannot hash itself."""
+    return {**profile.to_dict(), "configuration_hash": profile.configuration_hash}
+
+
 MAX_BODY_BYTES = 1_000_000
 MAX_UPLOAD_BYTES = 50_000_000
 PROFILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
@@ -197,7 +205,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "default_profile_unavailable", "The default profile is unavailable.")
             return
-        self._send_json(HTTPStatus.OK, profile.to_dict())
+        self._send_json(HTTPStatus.OK, profile_response(profile))
 
     def _profile_index(self) -> None:
         directory = self.server.profiles_dir
@@ -226,7 +234,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "storage_error", "The stored profile is invalid or unreadable.")
             return
         try:
-            self._send_json(HTTPStatus.OK, self._derive_calendar_participants(profile).to_dict())
+            self._send_json(HTTPStatus.OK, profile_response(self._derive_calendar_participants(profile)))
         except (OSError, ValueError) as error:
             self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_source_data", str(error))
 
@@ -253,7 +261,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         except (OSError, TypeError, ValueError):
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "storage_error", "The profile could not be saved.")
             return
-        self._send_json(HTTPStatus.OK, profile.to_dict())
+        self._send_json(HTTPStatus.OK, profile_response(profile))
 
     def _put_upload(self, relative_path: str) -> None:
         parts = relative_path.split("/")

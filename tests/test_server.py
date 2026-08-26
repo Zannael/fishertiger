@@ -56,10 +56,11 @@ class LocalApiServerTests(unittest.TestCase):
         return response, json.loads(payload) if payload else None
 
     def test_profiles_round_trip_and_index(self):
+        expected = {**self.profile, "configuration_hash": LeagueProfile.from_dict(self.profile).configuration_hash}
         body = json.dumps(self.profile).encode("utf-8")
         response, payload = self.request("PUT", "/api/profiles/my-team", body, {"Content-Type": "application/json"})
         self.assertEqual(response.status, 200)
-        self.assertEqual(payload, self.profile)
+        self.assertEqual(payload, expected)
 
         response, payload = self.request("GET", "/api/profiles")
         self.assertEqual(response.status, 200)
@@ -67,7 +68,21 @@ class LocalApiServerTests(unittest.TestCase):
 
         response, payload = self.request("GET", "/api/profiles/my-team")
         self.assertEqual(response.status, 200)
-        self.assertEqual(payload, self.profile)
+        self.assertEqual(payload, expected)
+
+    def test_profile_responses_carry_the_hash_the_dataset_metadata_uses(self):
+        """The UI compares meta.profile.profile_hash with the profile's own hash to
+        flag a stale dataset, so the API has to expose it and stay stable when the
+        browser sends the annotated profile back."""
+        body = json.dumps(self.profile).encode("utf-8")
+        _, saved = self.request("PUT", "/api/profiles/my-team", body, {"Content-Type": "application/json"})
+        self.assertEqual(saved["configuration_hash"], LeagueProfile.from_dict(self.profile).configuration_hash)
+        _, fetched = self.request("GET", "/api/profiles/my-team")
+        self.assertEqual(fetched["configuration_hash"], saved["configuration_hash"])
+        _, resaved = self.request("PUT", "/api/profiles/my-team", json.dumps(saved).encode("utf-8"), {"Content-Type": "application/json"})
+        self.assertEqual(resaved, saved)
+        stored = json.loads((self.server.profiles_dir / "my-team.json").read_text(encoding="utf-8"))
+        self.assertNotIn("configuration_hash", stored)
 
     def test_rejects_unsafe_names_and_invalid_json_boundaries(self):
         response, payload = self.request("PUT", "/api/profiles/%2E%2E", b'{}', {"Content-Type": "application/json"})

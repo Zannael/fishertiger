@@ -65,7 +65,7 @@ def test_default_profile_posts_to_generator_and_serves_a_scoped_frontend_dataset
 
     status, saved = client.request("PUT", "/api/profiles/profile-flow", json.dumps(profile).encode())
     assert status == 200
-    assert saved == json.loads(expected_profile.canonical_json())
+    assert saved == {**json.loads(expected_profile.canonical_json()), "configuration_hash": expected_profile.configuration_hash}
 
     status, result = client.request("POST", "/api/generate", b'{"profile_id":"profile-flow"}')
     assert status == 200
