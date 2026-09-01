@@ -27,4 +27,6 @@
 - Python tests: `.venv/bin/python -m pytest`.
 - Web tests: `cd web && npm test`; this runs only `web/tests/*.test.js`. Also run `node --test src/profile-client.test.js` from `web` when changing the profile client.
 - Client build: `cd web && npm run build`.
-- There are no configured lint or typecheck scripts; do not infer additional commands from the framework defaults.
+- Web formatting check: `cd web && npm run format:check`.
+- Web type-check (TypeScript): `cd web && npx tsc --noEmit`.
+- Husky hooks enforce formatting on `pre-commit` via Prettier and validate commit messages with Commitlint on `commit-msg`; see README for details.
