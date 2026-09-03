@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from advisor.league_profile import LeagueProfile
-from advisor.pipeline import _clean_record, anonymize_public_calendar, build_projections, fixture_projection_arrays, normalize, vote_standard_deviation, weighted_history, weighted_rate_per_appearance
+from advisor.pipeline import _clean_record, _json_safe, anonymize_public_calendar, build_projections, fixture_projection_arrays, normalize, vote_standard_deviation, weighted_history, weighted_rate_per_appearance
 
 
 def history(mv: float, appearances: int, goals: int = 0) -> pd.DataFrame:
@@ -61,6 +61,13 @@ def test_generation_without_league_calendar_writes_strict_json(tmp_path):
     decoded = json.loads(serialized, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
     assert payload["calendario_lega"] is None
     assert decoded["calendario_lega"] is None
+
+
+def test_json_safe_converts_non_finite_values_in_nested_payloads():
+    result = _json_safe({"projection": [float("nan"), float("inf"), 6.5]})
+
+    assert result == {"projection": [None, None, 6.5]}
+    json.dumps(result, allow_nan=False)
 
 
 def test_fixture_projections_vary_by_opponent_venue_and_rotation():
