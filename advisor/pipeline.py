@@ -348,7 +348,19 @@ def vote_standard_deviation(player_id: int, histories: list[pd.DataFrame], defau
 
 def _clean_record(record: dict) -> dict:
     """Convert pandas scalar nulls to JSON nulls while retaining numeric values."""
-    return {key: (None if pd.isna(value) else value) for key, value in record.items()}
+    return {key: _json_safe(value) for key, value in record.items()}
+
+
+def _json_safe(value):
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (float, np.floating)):
+        return float(value) if np.isfinite(value) else None
+    if pd.isna(value):
+        return None
+    return value
 
 
 def league_rules_payload(league: LeagueConfig) -> dict:
@@ -544,7 +556,7 @@ def build_projections(raw: Path = RAW, output: Path = PROCESSED, config: ModelCo
         "historical": {"matchdays": config.season_days, "label": f"storico {config.season_days}"},
         "current_league": {"serie_a_matchdays": current_matchdays, "label": f"lega corrente {len(current_matchdays)}"},
     }
-    payload = {"schema_version": "1.0", "model_version": "1.6", "players": players, "teams": team_records, "set_pieces": set_piece_records, "league_rules": league_rules, "calendario_serie_a": calendar_records, "calendario_lega": league_calendar, "meta": {"generato_il": datetime.now(timezone.utc).isoformat(), "versione_modello": "1.6", "profile": profile_meta, "horizons": horizons, "assunzioni": "75 minuti per voto; disponibilita da status e storico; gerarchia portieri esplicita; malus portieri incluso; lineup auto nel simulatore"}}
+    payload = _json_safe({"schema_version": "1.0", "model_version": "1.6", "players": players, "teams": team_records, "set_pieces": set_piece_records, "league_rules": league_rules, "calendario_serie_a": calendar_records, "calendario_lega": league_calendar, "meta": {"generato_il": datetime.now(timezone.utc).isoformat(), "versione_modello": "1.6", "profile": profile_meta, "horizons": horizons, "assunzioni": "75 minuti per voto; disponibilita da status e storico; gerarchia portieri esplicita; malus portieri incluso; lineup auto nel simulatore"}})
     output.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
     try:
