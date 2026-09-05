@@ -953,8 +953,8 @@ class LocalApiHandler(BaseHTTPRequestHandler):
         if dataset_path is None:
             return
         try:
-            with dataset_path.open(encoding="utf-8") as handle:
-                value = json.load(handle)
+           with open(file_path, "r", encoding="utf-8") as handle:
+    value = json.load(handle)
         except FileNotFoundError:
             self._error(HTTPStatus.NOT_FOUND, "dataset_not_found", "The dataset does not exist.")
             return
