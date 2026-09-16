@@ -1,0 +1,3 @@
+MSG_FILE="$(pwd)/$1"
+cd web
+npx --no -- commitlint --edit "$MSG_FILE"
