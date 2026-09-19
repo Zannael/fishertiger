@@ -70,6 +70,7 @@ class LocalApiServerTests(unittest.TestCase):
             formations_fetcher=formations_fetcher,
             set_piece_fetcher=set_piece_fetcher,
             player_list_fetcher=player_list_fetcher,
+            injury_fetcher=lambda _url: (_ for _ in ()).throw(OSError("offline")),
         )
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
@@ -165,6 +166,40 @@ class LocalApiServerTests(unittest.TestCase):
         response, payload = self.request("GET", "/api/profiles/my-team")
         self.assertEqual(response.status, 200)
         self.assertEqual(payload, expected)
+
+    def test_injury_endpoints_are_nonfatal_when_remote_is_offline(self):
+        saved, _ = self.request(
+            "PUT",
+            "/api/profiles/my-team",
+            json.dumps(self.profile).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        self.assertEqual(saved.status, 200)
+        body = json.dumps({"profile": self.profile}).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        response, status = self.request("POST", "/api/updates/injuries/status", body, headers)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(status["state"], "never_checked")
+        self.assertIsNone(status["snapshot"])
+        response, checked = self.request("POST", "/api/updates/injuries/check", body, headers)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(checked["state"], "error")
+
+    def test_fco_p1_status_is_read_only_and_profile_scoped(self):
+        saved, _ = self.request(
+            "PUT", "/api/profiles/my-team", json.dumps(self.profile).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        self.assertEqual(saved.status, 200)
+        response, status = self.request(
+            "POST", "/api/updates/fco/status", json.dumps({"profile": self.profile}).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        self.assertEqual(response.status, 200)
+        self.assertEqual(status["provider"], "fantacalcio-online")
+        self.assertIsNone(status["performance"])
+        self.assertIsNone(status["market"])
+        self.assertIsNone(status["lineups"])
 
     def test_profile_responses_carry_the_hash_the_dataset_metadata_uses(self):
         """The UI compares meta.profile.profile_hash with the profile's own hash to

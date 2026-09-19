@@ -8,6 +8,7 @@ import pandas as pd
 
 from advisor.sosfanta_formations_updates import (
     accept_latest,
+    apply_safe_updates,
     audit_starters,
     build_bundle,
     check_updates,
@@ -69,6 +70,7 @@ def write_sources(root: Path, teams, statuses=None, unresolved=False):
     pd.DataFrame(rows).to_csv(starters, index=False)
     with pd.ExcelWriter(listone) as writer:
         pd.DataFrame(players).to_excel(writer, sheet_name="Tutti", index=False, startrow=1)
+        pd.DataFrame(columns=["Id", "Nome", "Squadra"]).to_excel(writer, sheet_name="Ceduti", index=False, startrow=1)
     return starters, listone
 
 
@@ -148,6 +150,7 @@ class SosFantaFormationsUpdatesTests(unittest.TestCase):
             players.loc[1, "Squadra"] = players.loc[0, "Squadra"]
             with pd.ExcelWriter(listone) as writer:
                 players.to_excel(writer, sheet_name="Tutti", index=False, startrow=1)
+                pd.DataFrame(columns=["Id", "Nome", "Squadra"]).to_excel(writer, sheet_name="Ceduti", index=False, startrow=1)
             ambiguous = audit_starters(snapshot, starters, listone)
             self.assertTrue(any(
                 finding["diagnostic"] == "multiple equally scored candidates"
@@ -232,6 +235,30 @@ class SosFantaFormationsUpdatesTests(unittest.TestCase):
                 checking.result(timeout=5)
                 with self.assertRaises(SosFantaError):
                     accepting.result(timeout=5)
+
+    def test_safe_apply_updates_structural_status_adds_missing_and_preserves_omissions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            teams = extract_formations(article(), "2026/27")
+            starters, listone = write_sources(root, teams)
+            rows = pd.read_csv(starters, dtype=str)
+            rows.loc[0, "status"] = "RISERVA"
+            rows.loc[0, "id_fantacalcio"] = ""
+            missing_id = rows.loc[1, "id_fantacalcio"]
+            rows = rows.drop(index=1)
+            rows.loc[len(rows)] = {"squadra": "Atalanta", "nome": "Omitted", "id_fantacalcio": "9999", "status": "RISERVA", "note": "keep"}
+            rows.to_csv(starters, index=False)
+            initial = check_updates(root, "profile", "2026/27", starters, listone, lambda _: article())
+            before = initial["audit"]["summary"]["issue_count"]
+            applied = apply_safe_updates(root, "profile", "2026/27", starters, listone, initial["content_hash"], initial["audit_hash"], lambda: None)
+            after = pd.read_csv(starters, dtype=str, keep_default_na=False)
+            self.assertEqual(after.loc[after.nome == "Player 0A", "status"].iloc[0], "TITOLARE")
+            self.assertEqual(after.loc[after.nome == "Player 0A", "id_fantacalcio"].iloc[0], "")
+            self.assertEqual(after.loc[after.id_fantacalcio == missing_id, "status"].iloc[0], "BALLOTTAGGIO")
+            self.assertEqual(after.loc[after.id_fantacalcio == "9999", "note"].iloc[0], "keep")
+            self.assertLess(applied["audit"]["summary"]["issue_count"], before)
+            with self.assertRaises(SosFantaError):
+                apply_safe_updates(root, "profile", "2026/27", starters, listone, initial["content_hash"], initial["audit_hash"], lambda: None)
 
 
 if __name__ == "__main__":

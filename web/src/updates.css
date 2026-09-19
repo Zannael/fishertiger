@@ -22,6 +22,9 @@
   .update-state.changed { border-color: var(--c-brand-line); background: var(--c-brand-tint); color: var(--c-brand-bright); }
   .update-state.unchanged { border-color: var(--c-line); background: var(--c-surface-2); color: var(--c-text); }
   .update-state.baseline_missing { border-color: var(--c-info); color: var(--c-info); }
+  .update-state.fresh { border-color: var(--c-go); color: var(--c-go); }
+  .update-state.warning, .update-state.stale, .update-state.unsupported { border-color: var(--c-warn); color: var(--c-warn); }
+  .update-state.error { border-color: var(--c-stop); color: var(--c-stop); }
   .update-source-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--c-line); }
   .update-source-meta div { display: grid; align-content: start; gap: var(--s-1); min-width: 0; border-bottom: 1px solid var(--c-line-soft); padding: var(--s-3) var(--s-4); }
   .update-source-meta div:last-child { grid-column: 1 / -1; border-bottom: 0; }
@@ -90,6 +93,11 @@
   .listone-entry-list p { display: flex; justify-content: space-between; gap: var(--s-2); margin: 0; background: var(--c-canvas); padding: var(--s-3) var(--s-4); color: var(--c-text-dim); font-size: var(--fs-xs); }
   .listone-entry-list p strong { overflow: hidden; color: var(--c-text); text-overflow: ellipsis; white-space: nowrap; }
   .update-truncated { margin: 0; border-top: 1px solid var(--c-line-soft); padding: var(--s-4); color: var(--c-stop); font-size: var(--fs-sm); }
+  .injury-update-details { border-top: 1px solid var(--c-line-soft); background: var(--c-surface-2); }
+  .injury-update-details > summary { display: flex; min-height: var(--tap); align-items: center; justify-content: space-between; padding: var(--s-3) var(--s-4); cursor: pointer; font-size: var(--fs-sm); font-weight: 700; }
+  .injury-update-details > summary b { color: var(--c-brand-bright); font: 700 var(--fs-xs) var(--font-num); }
+  .injury-update-list p { display: grid; }
+  .injury-update-list p span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .update-method-note { display: grid; gap: var(--s-1); border: 1px solid var(--c-line-soft); border-left: 2px solid var(--c-brand-line); border-radius: var(--r-md); background: var(--c-surface-2); padding: var(--s-3) var(--s-4); color: var(--c-text-dim); font-size: var(--fs-sm); line-height: var(--lh-normal); }
   .update-method-note p { margin: 0; }
 

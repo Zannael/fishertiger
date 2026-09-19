@@ -14,9 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 from bs4 import BeautifulSoup, Tag
-from rapidfuzz import fuzz
-
-from .pipeline import normalize
+from .player_identity import load_identity_overrides, normalize, resolve_player
 from .sosfanta_updates import MAX_PAGE_BYTES, SosFantaError, fetch_page
 
 FetchPage = Callable[[str], str]
@@ -38,7 +36,7 @@ def _season_in_title(season: str, title: str) -> bool:
     start = int(match.group(1))
     raw_end = match.group(2)
     end = int(str(start)[:2] + raw_end) if len(raw_end) == 2 else int(raw_end)
-    if end != start + 1 or not any(value in title for value in (f"{start}/{str(end)[-2:]}", f"{start}/{end}")):
+    if end != start + 1 or not any(value in title for value in (f"{start}/{str(end)[-2:]}", f"{start}/{end}", f"{start}-{str(end)[-2:]}", f"{start}-{end}")):
         return False
     return True
 
@@ -161,19 +159,11 @@ def stored_status(root: Path, profile_id: str, season: str) -> dict[str, object]
 
 
 def _resolve(name: str, team: str, listone: pd.DataFrame) -> list[dict[str, object]]:
-    query = normalize(name.split(",", 1)[0])
-    candidates = listone[listone.Squadra.map(normalize) == normalize(team)]
-    scored = []
-    for row in candidates.itertuples(index=False):
-        candidate = normalize(str(row.Nome))
-        score = fuzz.token_sort_ratio(query, candidate)
-        if query == candidate or query in candidate.split() or candidate.startswith((query + " ", query + "-")):
-            score = 100
-        scored.append((score, row))
-    if not scored:
+    result = resolve_player(name.split(",", 1)[0], team, listone.to_dict("records"), source="sosfanta-goalkeepers", overrides=load_identity_overrides())
+    if not result["matched"]:
         return []
-    best = max(score for score, _ in scored)
-    return [{"id": int(row.Id), "name": str(row.Nome), "team": str(row.Squadra)} for score, row in scored if score == best and score >= 90]
+    row = result["player"]
+    return [{"id": int(row["Id"]), "name": str(row["Nome"]), "team": str(row["Squadra"])}]
 
 
 def _hierarchy_candidates(value: str, team: str, listone: pd.DataFrame) -> list[dict[str, object]]:

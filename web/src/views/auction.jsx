@@ -588,6 +588,14 @@ function VerdictCard({
           <p>
             {player.squadra} · {formatTier(player.guida_asta_fascia)}
           </p>
+          {player.availability_overlay?.effective ? (
+            <p className="availability-context">
+              {player.availability_overlay.effective === "OUT" ? "Indisponibile" : "In dubbio"}
+              {player.availability_overlay.automatic?.reason
+                ? ` · ${player.availability_overlay.automatic.reason}${player.availability_overlay.automatic.expected_return ? ` · rientro ${player.availability_overlay.automatic.expected_return}` : ""}${player.availability_overlay.automatic.return_date_source ? ` (${player.availability_overlay.automatic.return_date_source})` : ""} · Fantacalcio Online`
+                : " · override manuale"}
+            </p>
+          ) : null}
         </div>
         <button
           type="button"

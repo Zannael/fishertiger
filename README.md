@@ -44,6 +44,18 @@ projections, and auction tools. Upload a compatible private
 season simulation. Generated datasets and simulations stay local under
 `data/processed/<profile_id>/<season>/`.
 
+## Automatic availability
+
+Current Serie A injuries can be refreshed from the authorized public
+Fantacalcio Online injury list. No authentication or browser-side secret is
+required: the Python backend downloads and validates the HTML page.
+
+Successful snapshots are stored locally under `data/updates/` and remain
+available offline if the provider cannot be reached. This first version is an
+informational runtime overlay: it does not change projections, auction values,
+recommendations, simulations, or `confirmed_inactive`, and it does not require
+regenerating `auction_data.json`.
+
 ## Inputs And Profiles
 
 `config/default_profile.json` is the single public default profile. The API

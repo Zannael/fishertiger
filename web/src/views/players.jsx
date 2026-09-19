@@ -31,6 +31,8 @@ import {
   teamLogoUrl,
   writeMediaPreference,
 } from "../player-media.js";
+import { getFcoStatus } from "../updates-client.js";
+import { appearanceLabel, p1PlayerViewModel, voteLabel } from "../player-intelligence.js";
 import {
   Empty,
   PlayerRow,
@@ -110,6 +112,8 @@ export default function PlayersView({
   selected,
   setSelected,
   initialRole,
+  profile,
+  apiBase = "",
 }) {
   const teamValues = useMemo(
     () => ["TUTTE", ...data.teams.map((item) => item.squadra)],
@@ -133,9 +137,17 @@ export default function PlayersView({
   const [assignOwner, setAssignOwner] = useState(0);
   const [assignPrice, setAssignPrice] = useState("");
   const [feedback, setFeedback] = useState(null);
+  const [p1, setP1] = useState(null);
   const [priceFocusToken, setPriceFocusToken] = useState(0);
   const isDesktop = useMediaQuery("(min-width: 1000px)");
   const { query, role, team, onlyTargets, showLive } = filters;
+
+  useEffect(() => {
+    let active = true;
+    setP1(null);
+    if (profile) getFcoStatus(profile, { apiBase }).then((value) => active && setP1(value)).catch(() => {});
+    return () => { active = false; };
+  }, [apiBase, profile?.profile_id, profile?.season?.season]);
 
   useEffect(() => {
     setFilters(loadPlayerFilters(profileId, ROLE_VALUES, teamValues));
@@ -256,6 +268,7 @@ export default function PlayersView({
       mark={mark}
       showMedia={showMedia}
       noteMaxLength={NOTE_MAX_LENGTH}
+      intelligence={p1PlayerViewModel(p1, player.id, data.players, activeRules, board)}
       onToggleTarget={() =>
         updateNotes(withTarget(notes, player.id, !mark.target))
       }
@@ -520,6 +533,7 @@ export function PlayerDetail({
   auction,
   onToggleTarget,
   onNoteChange,
+  intelligence,
 }) {
   const history = Object.entries(player.storico || {});
   const outliers = valuation.outliersFor(player);
@@ -562,6 +576,18 @@ export function PlayerDetail({
           </button>
         </span>
       </div>
+
+      {player.availability_overlay?.effective ? (
+        <div className={`notice notice--${player.availability_overlay.effective === "OUT" ? "stop" : "warn"}`}>
+          <b>{player.availability_overlay.effective === "OUT" ? "Indisponibile" : "In dubbio"}</b>
+          <p style={{ marginTop: 4 }}>
+            {player.availability_overlay.automatic?.reason || "Override manuale locale"}
+            {player.availability_overlay.automatic
+              ? ` · Rientro ${player.availability_overlay.automatic.expected_return || "non indicato"}${player.availability_overlay.automatic.return_date_source ? ` (${player.availability_overlay.automatic.return_date_source})` : ""} · Fonte Fantacalcio Online${player.availability_overlay.checkedAt ? ` · aggiornata ${player.availability_overlay.checkedAt.slice(0, 16).replace("T", " ")}` : ""}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
 
       {auction ? <LiveAuctionPanel player={player} {...auction} /> : null}
 
@@ -633,6 +659,8 @@ export function PlayerDetail({
         </span>
       </div>
 
+      <PlayerIntelligence intelligence={intelligence} />
+
       <div>
         <div className="section-head">
           <h2 style={{ fontSize: "var(--fs-md)" }}>Storico</h2>
@@ -676,6 +704,81 @@ export function PlayerDetail({
       </p>
     </div>
   );
+}
+
+export function PlayerIntelligence({ intelligence }) {
+  const [horizon, setHorizon] = useState(5);
+  const [showAuctionedPairs, setShowAuctionedPairs] = useState(false);
+  const performance = intelligence?.performance || [];
+  const market = intelligence?.market;
+  const lineup = intelligence?.lineup;
+  const form = intelligence?.form;
+  const forecast = intelligence?.forecast;
+  const positioning = intelligence?.positioning;
+  const compatible = market?.price_cohort_compatible;
+  const price = compatible ? market?.market_price : market?.benchmark_market_price;
+  const cohort = compatible ? market?.market_price_cohort : market?.benchmark_market_price_cohort;
+  const sources = [["FC", lineup?.fc_pct], ["Gaz", lineup?.gaz_pct], ["SOS", lineup?.sos_pct], ["Sky", lineup?.sky_pct]];
+  const calendar = intelligence?.calendar?.[horizon];
+  const pairings = (calendar?.pairings || []).filter((row) => showAuctionedPairs || !row.auctioned).slice(0, 5);
+  return <div className="p1-intelligence">
+    <section>
+      <div className="section-head"><h2>Rendimento</h2>{Number.isFinite(form?.mean_fc_vote) && <span>MV FC {form.mean_fc_vote.toFixed(2)} · {form.numeric_fc_votes} voti</span>}</div>
+      {performance.length ? <div className="p2-timeline">{[...performance].reverse().map((row) => <div key={row.matchday} className={row.round_state === "provisional" ? "is-provisional" : ""}>
+        <small>G{row.matchday}{row.round_state === "provisional" ? " · provv." : ""}</small><strong>{row.did_not_enter ? "NP" : voteLabel(row.vote_fc)}</strong><span>{row.venue === "HOME" ? "vs" : "@"} {row.opponent}</span><em>{appearanceLabel(row)}{row.goals ? ` · ⚽${row.goals}` : ""}{row.assists ? ` · A${row.assists}` : ""}</em>
+      </div>)}</div> : <p className="micro">Prestazioni correnti non ancora disponibili.</p>}
+      {form && <dl className="p1-facts"><dt>Presenze finali</dt><dd>{form.final_appearances}</dd><dt>Minuti</dt><dd>{form.minutes}</dd><dt>Gol / assist</dt><dd>{form.goals} / {form.assists}</dd><dt>Ultime 3</dt><dd>{Number.isFinite(form.last_3_mean) ? form.last_3_mean.toFixed(2) : "—"} · n={form.last_3_sample_size}</dd><dt>Ultime 5</dt><dd>{Number.isFinite(form.last_5_mean) ? form.last_5_mean.toFixed(2) : "—"} · n={form.last_5_sample_size}</dd></dl>}
+    </section>
+    <section>
+      <div className="section-head"><h2>Mercato</h2></div>
+      {market ? <dl className="p1-facts">
+        <dt>Comprato da</dt><dd>{Number.isFinite(market.ownership_pct) ? `${market.ownership_pct.toFixed(1)}%` : "campione insufficiente"}</dd>
+        <dt>7 giorni</dt><dd>{Number.isFinite(market.ownership_delta_7d) ? `${market.ownership_delta_7d >= 0 ? "+" : ""}${market.ownership_delta_7d.toFixed(1)} pp` : "—"}</dd>
+        <dt>Percentile ownership</dt><dd>{Number.isFinite(positioning?.ownership_role_percentile) ? `${positioning.ownership_role_percentile}° · n=${positioning.ownership_sample_size}` : "—"}</dd>
+        <dt>{compatible ? "Prezzo mercato" : "Benchmark FCO"}</dt><dd>{cohort ? (Number.isFinite(price?.value) ? price.value.toFixed(2) : market.new_player ? "Nuovo" : "—") : "Nessun benchmark singolo"}</dd>
+        {cohort && <><dt>{compatible ? "Cohort" : "Benchmark FCO"}</dt><dd>{cohort.teams} squadre / {cohort.credits}</dd></>}
+        {!compatible && <><dt>La tua lega</dt><dd>{market.active_league?.participants} squadre / {market.active_league?.credits} crediti</dd><dt>Confrontabilità</dt><dd>Non direttamente comparabile</dd></>}
+        <dt>Ownership updated</dt><dd>{market.market_source_date}</dd>
+        <dt>Prices updated</dt><dd>{market.price_source_date}</dd>
+        <dt>Price season</dt><dd>{price?.fallback_previous_season ? `Prezzo ${price.price_season}` : price?.current_season ? price.price_season : "Non disponibile"}</dd>
+        <dt>Posizione modello</dt><dd>{Number.isFinite(positioning?.model_percentile) ? `${positioning.model_percentile}° percentile · n=${positioning.model_sample_size}` : "—"}</dd>
+        <dt>Posizione mercato</dt><dd>{Number.isFinite(positioning?.market_percentile) ? `${positioning.market_percentile}° percentile · n=${positioning.market_sample_size}` : "—"}</dd>
+        <dt>Gap modello/mercato</dt><dd>{Number.isFinite(positioning?.model_market_gap_pp) ? `${positioning.model_market_gap_pp >= 0 ? "+" : ""}${positioning.model_market_gap_pp} pp` : "—"}</dd>
+      </dl> : <p className="micro">Mercato non ancora disponibile.</p>}
+    </section>
+    <section>
+      <div className="section-head"><h2>Previsioni</h2></div>
+      {forecast ? <dl className="p1-facts"><dt>FCO Rating</dt><dd>{forecast.fantaindex_current.toFixed(1)}</dd><dt>FCO Potenziale</dt><dd>{forecast.fantaindex_potential.toFixed(1)} ({forecast.potential_gap >= 0 ? "+" : ""}{forecast.potential_gap.toFixed(1)})</dd><dt>FCO Titolarità stagione</dt><dd>{forecast.season_availability_pct.toFixed(0)}%</dd><dt>Fonte FCO</dt><dd>{forecast.source_date}</dd></dl> : <p className="micro">Indici FCO non ancora disponibili.</p>}
+      {lineup ? <>
+        <h3 className="p2-subhead">Probabilità prossima partita</h3>
+        <p className="p1-lineup-head"><b>{lineup.opponent} · {lineup.venue === "HOME" ? "casa" : "trasferta"}</b><strong>{Number.isFinite(lineup.weighted_pct) ? `${lineup.weighted_pct}%` : "—"}</strong></p>
+        <div className="p1-sources">{sources.map(([label, value]) => <span key={label}><small>{label}</small><b>{Number.isFinite(value) ? value : "—"}</b></span>)}</div>
+        <p className="micro">{lineup.source_count}/4 fonti · rilevazione {lineup.observation_at?.slice(0, 16).replace("T", " ")}</p>
+      </> : <p className="micro">Probabilità prossima partita non disponibile.</p>}
+    </section>
+    <section>
+      <div className="section-head"><h2>Calendario</h2><span>Forza avversario relativa</span></div>
+      <div className="p3-horizons" role="group" aria-label="Orizzonte calendario">{[5, 8, 10].map((value) => <button type="button" key={value} className={horizon === value ? "is-active" : ""} aria-pressed={horizon === value} onClick={() => setHorizon(value)}>{value}</button>)}</div>
+      {calendar?.fixtures?.length ? <div className="p3-calendar">{calendar.fixtures.map((fixture, index) => {
+        const difficulty = fixture.opponent_strength_percentile;
+        const ownWin = fixture.venue === "HOME" ? fixture.market?.home_win_pct : fixture.market?.away_win_pct;
+        const loss = fixture.venue === "HOME" ? fixture.market?.away_win_pct : fixture.market?.home_win_pct;
+        return <div key={fixture.matchday} className={`p3-fixture difficulty-${difficulty >= 70 ? "hard" : difficulty <= 40 ? "easy" : "medium"}`}>
+          <b>G{fixture.matchday}</b><span>{fixture.venue === "HOME" ? "vs" : "@"} {fixture.opponent}</span><strong aria-label={`Difficoltà ${difficulty} su 100`}>{difficulty}</strong>
+          {index === 0 && fixture.market ? <small>vittoria {ownWin}% · pari {fixture.market.draw_pct}% · sconfitta {loss}% · 3+ gol {fixture.market.three_plus_goals_pct}% · quote {fixture.market.observation_at.slice(5, 16).replace("T", " ")}</small> : null}
+        </div>;
+      })}</div> : <p className="micro">Contesto calendario non ancora disponibile.</p>}
+    </section>
+    <section>
+      <div className="section-head"><h2>Abbinamenti calendario</h2></div>
+      <label className="p3-auctioned-filter"><input type="checkbox" checked={showAuctionedPairs} onChange={(event) => setShowAuctionedPairs(event.target.checked)} /> Mostra già assegnati</label>
+      {pairings.length ? <div className="p3-pairings">{pairings.map((row) => <details key={row.player.id}>
+        <summary><span><b>{row.player.nome}</b><small>{row.player.squadra}{row.auctioned ? " · assegnato" : ""}</small></span><span><b>+{row.metrics.complementarity_gain.toFixed(1)} pp</b><small>media coppia {row.metrics.mean_best_pair.toFixed(1)} · facili {row.metrics.easy_coverage}/{row.metrics.sample_size} · dure insieme {row.metrics.hard_overlap}/{row.metrics.sample_size}</small></span></summary>
+        <table><thead><tr><th></th>{row.metrics.matchdays.map((matchday) => <th key={matchday}>G{matchday}</th>)}</tr></thead><tbody><tr><th>Scelto</th>{row.metrics.vector_a.map((value, index) => <td key={index}>{value}</td>)}</tr><tr><th>{row.player.nome}</th>{row.metrics.vector_b.map((value, index) => <td key={index}>{value}</td>)}</tr><tr><th>Best</th>{row.metrics.best_pair.map((value, index) => <td key={index}>{value}</td>)}</tr></tbody></table>
+      </details>)}</div> : <p className="micro">Nessun abbinamento dello stesso ruolo disponibile.</p>}
+      <p className="micro">Il guadagno confronta la difficoltà media della coppia con il calendario singolo migliore; non è una raccomandazione d’asta.</p>
+    </section>
+  </div>;
 }
 
 function LiveAuctionPanel({

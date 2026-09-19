@@ -8,6 +8,10 @@ import {
   checkSosFantaFormations,
   checkSosFantaSetPieces,
   checkSosFantaGoalkeepers,
+  checkInjuries,
+  checkAllUpdateSources,
+  repairSosFantaFormationIdentities,
+  getInjuryStatus,
   fantacalcioDownloadUrl,
   fetchSosFantaFormationBundle,
   sosFantaFormationsUrl,
@@ -67,6 +71,49 @@ test("uses the SOS Fanta goalkeeper provider endpoint", async () => {
     fetchImpl: async (url) => { requestUrl = url; return { ok: true, status: 200, json: async () => ({ state: "unchanged" }) }; },
   });
   assert.equal(requestUrl, "/api/updates/sosfanta-goalkeepers/check");
+});
+
+test("keeps Fantacalcio Online status and refresh behind backend endpoints", async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => ({ state: "fresh" }) };
+  };
+  await getInjuryStatus({ profile_id: "league" }, { fetchImpl });
+  await checkInjuries({ profile_id: "league" }, { fetchImpl });
+  assert.deepEqual(urls, [
+    "/api/updates/injuries/status",
+    "/api/updates/injuries/check",
+  ]);
+  assert.equal(urls.every((url) => url.startsWith("/api/updates/injuries/")), true);
+});
+
+test("manual injury refresh explicitly bypasses the backend freshness guard", async () => {
+  let headers;
+  await checkInjuries({ profile_id: "league" }, {
+    force: true,
+    fetchImpl: async (_url, options) => {
+      headers = options.headers;
+      return { ok: true, status: 200, json: async () => ({ state: "fresh" }) };
+    },
+  });
+  assert.equal(headers["X-Force-Refresh"], "true");
+});
+
+test("check-all tolerates one failure and only calls check endpoints", async () => {
+  const urls = [];
+  const rows = await checkAllUpdateSources({ profile_id: "league" }, {
+    fetchImpl: async (url) => {
+      urls.push(url);
+      if (url.includes("sosfanta-formations")) throw new Error("offline");
+      return { ok: true, status: 200, json: async () => ({ state: "unchanged" }) };
+    },
+  });
+  assert.equal(rows.length, 11);
+  assert.equal(rows.at(-1).label, "FCO Contesto calendario");
+  assert.equal(rows.filter((row) => row.error).length, 1);
+  assert.equal(urls.every((url) => url.endsWith("/check")), true);
+  assert.equal(urls.some((url) => url.includes("/apply") || url.includes("/accept")), false);
 });
 
 test("maps profile seasons to official Fantacalcio downloads", () => {
@@ -133,6 +180,16 @@ test("accepts a SOS Fanta formations source snapshot", async () => {
   };
   await acceptSosFantaFormations({ profile_id: "test" }, { fetchImpl, contentHash: "content" });
   assert.equal(requestUrl, "/api/updates/sosfanta-formations/accept");
+});
+
+test("sends the reviewed titolari hash for safe identity repairs", async () => {
+  let request;
+  await repairSosFantaFormationIdentities({ profile_id: "test" }, {
+    auditHash: "reviewed-source-hash",
+    fetchImpl: async (url, options) => { request = { url, body: JSON.parse(options.body) }; return { ok: true, status: 200, json: async () => ({ applied: 1 }) }; },
+  });
+  assert.equal(request.url, "/api/updates/sosfanta-formations/repair-identities");
+  assert.equal(request.body.audit_hash, "reviewed-source-hash");
 });
 
 test("normalizes network and invalid response failures", async () => {

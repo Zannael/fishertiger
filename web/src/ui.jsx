@@ -188,6 +188,7 @@ export function PlayerRow({
   trailing,
 }) {
   const tone = availabilityTone(player.disponibilita?.status);
+  const availability = player.availability_overlay?.effective;
   const framed = Boolean(lead || trailing);
   const hit = (
     <button
@@ -206,6 +207,11 @@ export function PlayerRow({
         <span className="row-title">
           <i className={`avail avail--${tone}`} aria-hidden="true" />
           {player.nome}
+          {availability ? (
+            <span className={`availability-badge availability-badge--${availability.toLowerCase()}`}>
+              {availability === "QUESTIONABLE" ? "DUBBIO" : "OUT"}
+            </span>
+          ) : null}
           {flag}
         </span>
         <span className="row-sub">

@@ -9,10 +9,8 @@ import {
   formatTier,
 } from "../ui.jsx";
 import {
-  isPlayerInjured,
-  loadPlayerInjuries,
-  savePlayerInjuries,
-  withPlayerInjury,
+  FORCE_AVAILABLE,
+  FORCE_OUT,
 } from "../player-injuries.js";
 
 const TOP_TIERS = ["SUPER TOP", "TOP", "SEMITOP"];
@@ -22,17 +20,13 @@ const TOP_TIERS = ["SUPER TOP", "TOP", "SEMITOP"];
  * then hands over to the three working screens. Nothing here is a decision aid;
  * the auction screen owns that job.
  */
-export default function OverviewView({ data, profileId, openPlayer, openTeam, openRole }) {
-  const [injuries, setInjuries] = useState(() => loadPlayerInjuries(profileId));
+export default function OverviewView({ data, profileId, openPlayer, openTeam, openRole, injuryState }) {
   const [injuryManagerOpen, setInjuryManagerOpen] = useState(false);
   const [injuryQuery, setInjuryQuery] = useState("");
-  const [injuryWarning, setInjuryWarning] = useState("");
 
   useEffect(() => {
-    setInjuries(loadPlayerInjuries(profileId));
     setInjuryManagerOpen(false);
     setInjuryQuery("");
-    setInjuryWarning("");
   }, [profileId]);
 
   const roleCounts = Object.keys(ROLE_LABELS).map((role) => ({
@@ -43,19 +37,18 @@ export default function OverviewView({ data, profileId, openPlayer, openTeam, op
     .filter((player) => TOP_TIERS.includes(formatTier(player.guida_asta_fascia)))
     .sort((a, b) => b.fvm_scaled - a.fvm_scaled)
     .slice(0, 8);
-  const injured = data.players.filter((player) => isPlayerInjured(injuries, player.id));
+  const unavailable = data.players.filter((player) => player.availability_overlay?.effective === "OUT");
+  const questionable = data.players.filter((player) => player.availability_overlay?.effective === "QUESTIONABLE");
+  const monitored = data.players.filter((player) => player.availability_overlay?.effective);
+  const managed = data.players.filter((player) =>
+    player.availability_overlay?.automatic || player.availability_overlay?.override,
+  );
   const matchdays = data.calendario_serie_a?.length
     ? Math.round(data.calendario_serie_a.length / 10)
     : null;
-  const setPlayerInjured = (playerId, value) => {
-    const next = withPlayerInjury(injuries, playerId, value);
-    setInjuries(next);
-    setInjuryWarning(
-      savePlayerInjuries(profileId, next)
-        ? ""
-        : "Stato non salvato: la memoria del browser non è disponibile.",
-    );
-  };
+  const ageMinutes = injuryState.status.cacheAgeSeconds == null
+    ? null
+    : Math.round(injuryState.status.cacheAgeSeconds / 60);
 
   return (
     <div className="stack stack--lg">
@@ -136,10 +129,14 @@ export default function OverviewView({ data, profileId, openPlayer, openTeam, op
           <div className="section-head" style={{ padding: "var(--s-4)", marginBottom: 0 }}>
             <div>
               <span className="kicker">Da monitorare</span>
-              <h2>Infortunati</h2>
+              <h2>Indisponibili</h2>
+              <p className="micro">
+                {unavailable.length} fuori · {questionable.length} in dubbio
+                {ageMinutes == null ? "" : ` · aggiornato ${ageMinutes} min fa`}
+              </p>
             </div>
             <div className="overview-card-actions">
-              <span className="count">{injured.length}</span>
+              <span className="count">{unavailable.length}</span>
               <button
                 type="button"
                 className="btn btn--ghost btn--sm"
@@ -149,9 +146,9 @@ export default function OverviewView({ data, profileId, openPlayer, openTeam, op
               </button>
             </div>
           </div>
-          {injured.length ? (
+          {monitored.length ? (
             <div className="rows">
-              {injured.slice(0, 8).map((player) => (
+              {monitored.slice(0, 8).map((player) => (
                 <PlayerRow
                   key={player.id}
                   player={player}
@@ -163,9 +160,9 @@ export default function OverviewView({ data, profileId, openPlayer, openTeam, op
               ))}
             </div>
           ) : (
-            <Empty title="Nessun infortunato segnalato">
-              Usa Gestisci per aggiungere un avviso senza modificare valori o
-              consigli d&apos;asta.
+            <Empty title="Nessuna indisponibilità segnalata">
+              Gli aggiornamenti automatici e gli override manuali non modificano
+              valori o consigli d&apos;asta.
             </Empty>
           )}
         </section>
@@ -175,12 +172,12 @@ export default function OverviewView({ data, profileId, openPlayer, openTeam, op
         open={injuryManagerOpen}
         onClose={() => setInjuryManagerOpen(false)}
         players={data.players}
-        injured={injured}
-        injuries={injuries}
+        monitored={managed}
+        overrides={injuryState.overrides}
         query={injuryQuery}
         setQuery={setInjuryQuery}
-        setPlayerInjured={setPlayerInjured}
-        warning={injuryWarning}
+        setOverride={injuryState.setOverride}
+        warning={injuryState.storageWarning || injuryState.status.warning}
       />
 
       <section>
@@ -222,11 +219,11 @@ function InjuryManager({
   open,
   onClose,
   players,
-  injured,
-  injuries,
+  monitored,
+  overrides,
   query,
   setQuery,
-  setPlayerInjured,
+  setOverride,
   warning,
 }) {
   const normalizedQuery = query.trim().toLocaleLowerCase("it");
@@ -240,13 +237,13 @@ function InjuryManager({
     : [];
 
   return (
-    <Sheet open={open} onClose={onClose} title="Gestisci infortunati" wide>
+    <Sheet open={open} onClose={onClose} title="Gestisci disponibilità" wide>
       <div className="injury-manager stack">
         <div className="injury-manager-note">
-          <strong>Solo promemoria</strong>
+          <strong>Overlay informativo</strong>
           <p>
-            Questo stato appare nella Home e non modifica valori, fasce o
-            consigli d&apos;asta. Viene salvato solo in questo browser.
+            I dati automatici arrivano da Fantacalcio Online. Gli override manuali
+            restano in questo browser e non modificano valori o consigli d&apos;asta.
           </p>
         </div>
 
@@ -267,17 +264,17 @@ function InjuryManager({
           <InjuryPlayerList
             title="Risultati"
             players={matches}
-            injuries={injuries}
-            setPlayerInjured={setPlayerInjured}
+            overrides={overrides}
+            setOverride={setOverride}
             empty="Nessun giocatore trovato."
           />
         ) : null}
 
         <InjuryPlayerList
-          title={`Segnalati (${injured.length})`}
-          players={injured}
-          injuries={injuries}
-          setPlayerInjured={setPlayerInjured}
+          title={`Segnalati (${monitored.length})`}
+          players={monitored}
+          overrides={overrides}
+          setOverride={setOverride}
           empty="Nessun giocatore segnalato. Cerca un giocatore per iniziare."
         />
       </div>
@@ -285,7 +282,7 @@ function InjuryManager({
   );
 }
 
-function InjuryPlayerList({ title, players, injuries, setPlayerInjured, empty }) {
+function InjuryPlayerList({ title, players, overrides, setOverride, empty }) {
   return (
     <section className="injury-list">
       <div className="injury-list-title">
@@ -294,22 +291,29 @@ function InjuryPlayerList({ title, players, injuries, setPlayerInjured, empty })
       {players.length ? (
         <div className="injury-list-rows">
           {players.map((player) => {
-            const marked = isPlayerInjured(injuries, player.id);
+            const overlay = player.availability_overlay;
+            const automatic = overlay?.automatic?.availability;
+            const override = overrides?.[String(player.id)] || "";
             return (
               <div className="injury-manager-row" key={player.id}>
                 <RoleChip role={player.ruolo} />
                 <span>
                   <strong>{player.nome}</strong>
-                  <small>{player.squadra}</small>
+                  <small>
+                    {player.squadra}
+                    {automatic ? ` · automatico ${automatic === "OUT" ? "OUT" : "DUBBIO"}` : ""}
+                  </small>
                 </span>
-                <button
-                  type="button"
-                  className={`btn btn--sm${marked ? " btn--danger" : ""}`}
-                  aria-pressed={marked}
-                  onClick={() => setPlayerInjured(player.id, !marked)}
+                <select
+                  className="select"
+                  value={override}
+                  aria-label={`Override disponibilità di ${player.nome}`}
+                  onChange={(event) => setOverride(player.id, event.target.value || null)}
                 >
-                  {marked ? "Segna disponibile" : "Segna infortunato"}
-                </button>
+                  <option value="">Segui fonte</option>
+                  <option value={FORCE_OUT}>Forza indisponibile</option>
+                  <option value={FORCE_AVAILABLE}>Forza disponibile</option>
+                </select>
               </div>
             );
           })}

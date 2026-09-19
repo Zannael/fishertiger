@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   acceptSosFanta,
   acceptSosFantaFormations,
+  applySosFantaFormations,
+  repairSosFantaFormationIdentities,
   acceptSosFantaSetPieces,
   applySosFantaGoalkeepers,
   applyPlayerList,
@@ -25,9 +27,13 @@ import {
   sosFantaGoalkeepersUrl,
   checkSosFantaSetPieces,
   checkSosFantaGoalkeepers,
+  checkAllUpdateSources,
+  checkFco,
+  getFcoStatus,
   uploadPlayerListCandidate,
   updateStateLabel,
 } from "./updates-client.js";
+import { injuryUpdateViewModel } from "./injury-state.js";
 
 const ROLE_LABELS = { P: "Portieri", D: "Difensori", C: "Centrocampisti", A: "Attaccanti" };
 const ActionIcon = ({ name }) => {
@@ -58,6 +64,93 @@ const displayFormationSnapshot = (change, prefix) => {
   const text = Array.isArray(value) ? value : value == null ? [] : [displayChangeValue(value)];
   return [formation, ...text].filter(Boolean).join("\n\n") || "-";
 };
+
+const HEALTH_LABELS = ["SOS Guida", "SOS Formazioni", "SOS Piazzati", "Listone", "SOS Portieri", "Disponibilità FCO", "FCO Prestazioni", "FCO Mercato", "FCO Probabili", "FCO Indici", "FCO Contesto calendario"];
+const unresolvedBreakdown = (items = {}) => `fuori listone ${items.outside_active_listone || 0} · fuzzy ${items.fuzzy_requires_confirmation || 0} · ambigue ${items.ambiguous || 0} · squadra assente ${items.team_not_in_active_listone || 0} · altre ${items.other || 0}`;
+
+function UpdateHealth({ profile, apiBase }) {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const checkAll = async () => { setBusy(true); setRows(await checkAllUpdateSources(profile, { apiBase })); setBusy(false); };
+  return (
+    <article className="update-source-card update-health-card">
+      <header><div><h2>Salute aggiornamenti</h2></div></header>
+      <div className="update-actions"><button className="update-check-button" onClick={checkAll} disabled={busy}><ActionIcon name="refresh" /><span>{busy ? "Controllo..." : "Controlla tutte le fonti"}</span></button></div>
+      <div className="listone-entry-list">
+        {(rows.length ? rows : HEALTH_LABELS.map((label) => ({ label }))).map(({ label, result, error }) => {
+          const issues = result?.audit?.summary?.issue_count || 0;
+          const records = result?.snapshot?.source_count;
+          const unresolved = result?.snapshot?.unresolved?.length;
+          const fco = label === "FCO Prestazioni" && result ? `${result.available_matchdays} giornate · ${result.final_matchdays} finali / ${result.provisional_matchdays} provvisorie · ${result.unresolved} irrisolti (${unresolvedBreakdown(result.unresolved_classifications)}) · ${result.cumulative_audit?.discrepancies?.length || 0} discrepanze confermate · ${result.cumulative_audit?.pending_sync?.length || 0} sincronizzazioni provvisorie`
+            : label === "FCO Mercato" && result ? `ownership ${result.market_source_date} · prezzi ${result.price_source_date} · ${result.summary?.players || 0} giocatori · ${result.summary?.current_season_prices || 0} correnti / ${result.summary?.fallback_prices || 0} fallback · ${unresolvedBreakdown(result.summary?.unresolved_classifications)}`
+              : label === "FCO Probabili" && result ? `G${result.matchday} · ${result.active_source_count}/4 fonti · ${result.evaluated_players} valutati · ${result.unresolved?.length || 0} irrisolti (${unresolvedBreakdown(result.unresolved_classifications)})`
+                : label === "FCO Indici" && result ? `${result.source_date} · ${result.source_rows} righe · ${result.resolved} risolti / ${result.unresolved?.length || 0} irrisolti (${unresolvedBreakdown(result.unresolved_classifications)})`
+                  : label === "FCO Contesto calendario" && result ? `${result.calendar?.exact_matches || 0}/380 partite ufficiali · forza ${result.team_strength?.team_count || 0}/20 · ${result.near_term_markets?.fixture_count || 0} mercati correnti` : "";
+          const detail = error || fco || (result ? `${updateStateLabel(result.state)}${issues ? ` · ${issues} problemi locali` : ""}${Number.isFinite(records) ? ` · ${records} record` : ""}${Number.isFinite(unresolved) ? ` · ${unresolved} irrisolti` : ""}` : "Non controllato");
+          return <p key={label}><strong>{label}</strong><span>{detail}</span></p>;
+        })}
+      </div>
+    </article>
+  );
+}
+
+const fcoDetails = (result) => {
+  const performance = result?.performance;
+  const market = result?.market;
+  const lineups = result?.lineups;
+  const forecast = result?.forecast;
+  const fixture = result?.fixture_context;
+  return [
+    ["FCO Prestazioni", performance
+      ? `${performance.available_matchdays} giornate · ${performance.final_matchdays} finali / ${performance.provisional_matchdays} provvisorie · ${performance.resolved} risolti / ${performance.unresolved} irrisolti (${unresolvedBreakdown(performance.unresolved_classifications)}) · audit cumulativo: ${unresolvedBreakdown(performance.cumulative_audit?.unresolved_classifications)} · ${performance.cumulative_audit?.discrepancies?.length || 0} discrepanze confermate · ${performance.cumulative_audit?.pending_sync?.length || 0} sincronizzazioni provvisorie`
+      : "Non ancora disponibili"],
+    ["FCO Mercato", market
+      ? `ownership ${market.market_source_date} · prezzi ${market.price_source_date} · ${market.summary?.players || 0} giocatori · ${market.summary?.current_season_prices || 0} prezzi correnti / ${market.summary?.fallback_prices || 0} fallback · ${market.summary?.unresolved || 0} irrisolti (${unresolvedBreakdown(market.summary?.unresolved_classifications)})`
+      : "Non ancora disponibile"],
+    ["FCO Probabili", lineups
+      ? `G${lineups.matchday} · ${lineups.observation_at?.slice(0, 16).replace("T", " ")} · ${lineups.active_source_count}/4 fonti · ${lineups.evaluated_players} valutati · ${lineups.unresolved?.length || 0} irrisolti (${unresolvedBreakdown(lineups.unresolved_classifications)})`
+      : "Non ancora disponibili"],
+    ["FCO Indici", forecast
+      ? `${forecast.source_date} · ${forecast.source_rows} righe · ${forecast.resolved} risolti / ${forecast.unresolved?.length || 0} irrisolti (${unresolvedBreakdown(forecast.unresolved_classifications)})`
+      : "Non ancora disponibili"],
+    ["FCO Contesto calendario", fixture
+      ? `calendario ${fixture.calendar?.rounds}/38 giornate · ${fixture.calendar?.fixtures}/380 partite · ufficiale ${fixture.calendar?.state} · forza ${fixture.team_strength?.team_count}/20 (${fixture.team_strength?.semantic_label}) · quote correnti ${fixture.near_term_markets?.fixture_count || 0}${fixture.near_term_markets?.observation_at ? ` · ${fixture.near_term_markets.observation_at.slice(0, 16).replace("T", " ")}` : ""}`
+      : "Non ancora disponibile"],
+  ];
+};
+
+function FcoUpdates({ profile, apiBase }) {
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    let active = true;
+    setResult(null);
+    getFcoStatus(profile, { apiBase }).then((next) => active && setResult(next)).catch(() => {});
+    return () => { active = false; };
+  }, [apiBase, profile?.profile_id, profile?.season?.season]);
+  const check = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const next = await checkFco(profile, { apiBase, force: true });
+      setResult(next);
+      setMessage(Object.keys(next.errors || {}).length ? "Alcune fonti non sono state aggiornate: l'ultimo snapshot valido è rimasto intatto." : "Fonti Fantacalcio Online aggiornate.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Controllo non completato.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <article className="update-source-card">
+    <header><div><h2>Fantacalcio Online</h2></div><span className={`update-state ${result?.state || "idle"}`}>P1–P3</span></header>
+    <div className="update-actions"><button className="update-check-button" onClick={check} disabled={busy}><ActionIcon name="refresh" /><span>{busy ? "Controllo in corso..." : "Aggiorna fonti FCO"}</span></button></div>
+    <div className="listone-entry-list">{fcoDetails(result).map(([label, detail]) => <p key={label}><strong>{label}</strong><span>{detail}</span></p>)}</div>
+    {result?.performance?.cumulative_audit?.discrepancies?.length ? <details className="injury-update-details"><summary>Discrepanze confermate <b>{result.performance.cumulative_audit.discrepancies.length}</b></summary><div className="listone-entry-list">{result.performance.cumulative_audit.discrepancies.map((item) => <p key={`${item.fantacalcio_id}-${item.metric}`}><strong>{item.canonical_name} · #{item.fantacalcio_id}</strong><span>{item.metric}: giornate finali {item.final_matchday_total} · cumulativo FCO {item.cumulative}</span></p>)}</div></details> : null}
+    {result?.performance?.cumulative_audit?.pending_sync?.length ? <details className="injury-update-details"><summary>Sincronizzazioni provvisorie in attesa <b>{result.performance.cumulative_audit.pending_sync.length}</b></summary><div className="listone-entry-list">{result.performance.cumulative_audit.pending_sync.map((item) => <p key={`${item.fantacalcio_id}-${item.metric}`}><strong>{item.canonical_name} · #{item.fantacalcio_id}</strong><span>{item.metric}: finali {item.final_matchday_total} + provvisorio {item.provisional_addition} (G{item.provisional_matchdays.join(", G")}) · cumulativo FCO {item.cumulative}</span></p>)}</div></details> : null}
+    {message && <p className="update-message" role="status">{message}</p>}
+  </article>;
+}
 
 function PlayerListUpdates({ profile, apiBase, onApplyStart, onApplied }) {
   const [candidate, setCandidate] = useState(null);
@@ -311,6 +404,7 @@ function FormationUpdates({ profile, apiBase }) {
   const auditSummary = result?.audit?.summary;
   const auditSources = result?.audit?.sources || {};
   const findings = result?.audit?.findings || [];
+  const identityAudit = result?.audit?.identity_audit;
 
   useEffect(() => {
     let active = true;
@@ -338,6 +432,17 @@ function FormationUpdates({ profile, apiBase }) {
         if (request !== sequence.current) return;
         setResult(next);
         setMessage(next.state === "changed" ? `${next.change_count} formazioni modificate.` : "Fonte e audit CSV verificati.");
+      } else if (action === "apply") {
+        const next = await applySosFantaFormations(profile, { apiBase, contentHash: result?.content_hash, auditHash: result?.audit_hash });
+        if (request !== sequence.current) return;
+        setResult((current) => ({ ...current, ...next }));
+        setMessage(`${next.applied_count} correzioni deterministiche applicate; audit rieseguito.`);
+      } else if (action === "repair-identities") {
+        await repairSosFantaFormationIdentities(profile, { apiBase, auditHash: identityAudit?.source_hash });
+        const next = await getSosFantaFormationStatus(profile, { apiBase });
+        if (request !== sequence.current) return;
+        setResult(next);
+        setMessage("Riparazioni ID deterministiche applicate; audit rieseguito.");
       } else {
         const next = await acceptSosFantaFormations(profile, { apiBase, contentHash: result?.content_hash });
         if (request !== sequence.current) return;
@@ -386,7 +491,7 @@ function FormationUpdates({ profile, apiBase }) {
     <article className="update-source-card">
       <header>
         <div><span className="source-index">02</span><h2>SOS Fanta Formazioni</h2></div>
-        <span className={`update-state ${result?.state || "idle"}`}>{updateStateLabel(result?.state)}</span>
+        <span className={`update-state ${auditSummary?.issue_count ? "warning" : result?.state || "idle"}`}>{updateStateLabel(result?.state)}{auditSummary?.issue_count ? ` · ${auditSummary.issue_count} problemi locali` : ""}</span>
       </header>
       <div className="update-source-meta">
         <div><span>Stagione</span><strong>{season}</strong></div>
@@ -403,6 +508,18 @@ function FormationUpdates({ profile, apiBase }) {
            <button className="update-download-button" onClick={downloadBundle} disabled={Boolean(busy)}>
              <ActionIcon name="download" />
              <span>{busy === "bundle" ? "Preparazione..." : "Scarica bundle AI"}</span>
+           </button>
+         )}
+         {(auditSummary?.missing_row || auditSummary?.status_mismatch) > 0 && (
+           <button className="update-accept-button" onClick={() => run("apply")} disabled={Boolean(busy)}>
+             <ActionIcon name="check" />
+             <span>{busy === "apply" ? "Applicazione..." : "Applica correzioni sicure"}</span>
+           </button>
+         )}
+         {identityAudit?.safe_repair_count > 0 && (
+           <button className="update-accept-button" onClick={() => run("repair-identities")} disabled={Boolean(busy)}>
+             <ActionIcon name="check" />
+             <span>{busy === "repair-identities" ? "Riparazione..." : `Applica ${identityAudit.safe_repair_count} riparazioni ID sicure`}</span>
            </button>
          )}
          {(result?.state === "baseline_missing" || result?.state === "changed") && (
@@ -456,9 +573,14 @@ function FormationUpdates({ profile, apiBase }) {
               <summary><span>{finding.team || "Squadra non risolta"}</span><b>{finding.issue || "problema"}</b></summary>
               <div className="listone-change-fields">
                 <p><strong>Stato</strong><span>{finding.current_status || "-"} → {finding.expected_status || "-"}</span></p>
+                <p><strong>Giocatore</strong><span>{finding.name || finding.current_name || "-"}</span></p>
+                <p><strong>Match</strong><span>{finding.match_method || "-"} · score {finding.match_score ?? "-"}</span></p>
                 <p><strong>Articolo</strong><span>{finding.source === "article" ? finding.name : "-"}{finding.id_fantacalcio ? ` · ID ${finding.id_fantacalcio}` : ""}</span></p>
+                {finding.best_candidate && <p><strong>Miglior candidato</strong><span>{finding.best_candidate} · {finding.match_score}</span></p>}
                 {(finding.current_name || finding.source === "current_csv") && <p><strong>Nome CSV</strong><span>{finding.current_name || finding.name}</span></p>}
                 {finding.diagnostic && <p><strong>Diagnostica</strong><span>{finding.diagnostic}</span></p>}
+                {finding.duplicate_rows?.map((row) => <p key={row.row}><strong>Riga CSV {row.row}</strong><span>{row.name} · ID {row.id_fantacalcio || "-"} · {row.team} · {row.status} · {row.note || "nessuna nota"}</span></p>)}
+                {finding.merge_reason && <p><strong>Merge</strong><span>{finding.merge_reason}</span></p>}
                 {finding.formation_text && <p><strong>Formazione</strong><span>{finding.formation_text}</span></p>}
                 {finding.ballot_text && <p><strong>Ballottaggio</strong><span>{finding.ballot_text}</span></p>}
               </div>
@@ -653,11 +775,106 @@ function GoalkeeperUpdates({ profile, apiBase }) {
   );
 }
 
+const INJURY_STATE_LABELS = {
+  unconfigured: "Non configurato",
+  never_checked: "Mai controllato",
+  fresh: "Cache aggiornata",
+  stale: "Cache scaduta",
+  stale_source: "Fonte non aggiornata",
+  unsupported: "Copertura non disponibile",
+  error: "Errore aggiornamento",
+};
+
+const ageLabel = (seconds) => {
+  if (!Number.isFinite(seconds)) return "Nessuna cache";
+  if (seconds < 60) return "meno di un minuto";
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  return `${Math.round(seconds / 3600)} h`;
+};
+
+export function InjuryUpdates({ injuryState }) {
+  const [busy, setBusy] = useState(false);
+  const status = injuryState.status;
+  const snapshot = status.snapshot;
+  const view = injuryUpdateViewModel(status);
+  const groups = {
+    OUT: view.out,
+    QUESTIONABLE: view.questionable,
+  };
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      await injuryState.refresh();
+    } catch {
+      /* Central state keeps the cached snapshot and exposes the warning. */
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rows = (players) => (
+    <div className="listone-entry-list injury-update-list">
+      {players.map((player) => (
+        <p key={`${player.provider_team_name}-${player.provider_player_name}`}>
+          <strong>{player.role ? `${player.role} · ` : ""}{player.fantacalcio_name}</strong>
+          <span>{player.fantacalcio_team} · {player.reason || "Motivo non indicato"} · rientro {player.expected_return || "non indicato"} · {player.return_date_source || "fonte data non indicata"}</span>
+        </p>
+      ))}
+    </div>
+  );
+
+  return (
+    <article className="update-source-card injury-update-card">
+      <header>
+        <div><span className="source-index">06</span><h2>Disponibilità Serie A</h2></div>
+        <span className={`update-state ${status.state}`}>{INJURY_STATE_LABELS[status.state]}</span>
+      </header>
+      <div className="update-source-meta">
+        <div><span>Fonte</span><strong>{view.sourceLabel}</strong></div>
+        <div><span>Ultimo controllo riuscito</span><strong>{snapshot?.checked_at?.slice(0, 16).replace("T", " ") || "Mai"}</strong></div>
+        <div><span>Età cache</span><strong>{ageLabel(status.cacheAgeSeconds)}</strong></div>
+        <div><span>Età data fonte</span><strong>{ageLabel(status.sourceAgeSeconds)}</strong></div>
+      </div>
+      <div className="update-actions">
+        <button className="update-check-button" type="button" onClick={refresh} disabled={busy}>
+          <ActionIcon name="refresh" />
+          <span>{busy ? "Aggiornamento..." : "Aggiorna ora"}</span>
+        </button>
+      </div>
+      {view.warningMessage ? (
+        <p className="update-message error" role="alert">
+          {view.warningMessage}
+        </p>
+      ) : null}
+      <div className="update-summary">
+        <span>DISPONIBILITÀ RISOLTE</span>
+        <strong>{groups.OUT.length} OUT · {groups.QUESTIONABLE.length} DUBBIO</strong>
+        <p>{view.unresolved.length} identità non risolte</p>
+      </div>
+      {groups.OUT.length ? <details className="injury-update-details"><summary>OUT <b>{groups.OUT.length}</b></summary>{rows(groups.OUT)}</details> : null}
+      {groups.QUESTIONABLE.length ? <details className="injury-update-details"><summary>QUESTIONABLE <b>{groups.QUESTIONABLE.length}</b></summary>{rows(groups.QUESTIONABLE)}</details> : null}
+      {view.unresolved.length ? (
+        <details className="injury-update-details">
+          <summary>Identità non risolte <b>{view.unresolved.length}</b></summary>
+          <div className="listone-entry-list injury-update-list">
+            {view.unresolved.map((player, index) => (
+              <p key={`${player.provider_team_name}-${player.provider_player_name}-${index}`}>
+                <strong>{player.provider_player_name}</strong>
+                <span>{player.provider_team_name} · {player.reason_code || player.match_failure}{player.best_candidate ? ` · candidato ${player.best_candidate} (${player.best_score})` : ""}{player.second_candidate ? ` · secondo ${player.second_candidate} (${player.second_score})` : ""}</span>
+              </p>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </article>
+  );
+}
+
 export function Updates({
   profile,
   apiBase = "",
   onPlayerListApplyStart,
   onPlayerListApplied,
+  injuryState,
 }) {
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState("");
@@ -744,6 +961,10 @@ export function Updates({
         <h1>Aggiornamenti</h1>
         <p>Controlla le fonti, verifica le differenze e applica solo gli aggiornamenti approvati.</p>
       </div>
+
+      <UpdateHealth profile={profile} apiBase={apiBase} />
+
+      <FcoUpdates profile={profile} apiBase={apiBase} />
 
       <div className="update-workflow" aria-label="Come usare gli aggiornamenti">
         <strong>Come funziona</strong>
@@ -833,6 +1054,8 @@ export function Updates({
         onApplyStart={onPlayerListApplyStart}
         onApplied={onPlayerListApplied}
       />
+
+      <InjuryUpdates injuryState={injuryState} />
 
       <aside className="update-method-note">
         <strong>Metodo</strong>

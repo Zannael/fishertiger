@@ -1,4 +1,4 @@
-import { Component, StrictMode, useEffect, useRef, useState } from "react";
+import { Component, StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Download, Trash2, Upload } from "lucide-react";
 import "./index.css";
@@ -12,6 +12,7 @@ import { clearProfileBrowserData } from "./profile-storage.js";
 import { useAuctionBoard } from "./use-auction-store.js";
 import { backupAuction } from "./auction-store.js";
 import { auctionSimulationInput } from "./auction-simulation.js";
+import { useInjuryState } from "./injury-state.js";
 import {
   apiUrl,
   auctionDatasetPath,
@@ -333,8 +334,17 @@ function App() {
     setListRole(role);
     navigate("players", { player: null });
   };
-  const data = dataset?.data || null;
+  const rawData = dataset?.data || null;
   const activeProfileId = dataset?.profileId || "default";
+  const injuryState = useInjuryState({ profile, apiBase, players: rawData?.players || [] });
+  const data = useMemo(
+    () => rawData ? { ...rawData, players: injuryState.players } : null,
+    [rawData, injuryState.players],
+  );
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    setSelectedPlayer(data?.players.find((player) => String(player.id) === String(selectedPlayer.id)) || null);
+  }, [data?.players]);
   const activeRules = rulesFor(dataset?.profile ?? profile, data || {});
   const auctionBoard = useAuctionBoard(activeProfileId, data?.players || [], activeRules, Boolean(data));
   const auctionInput = auctionSimulationInput(auctionBoard, data?.calendario_lega, activeRules);
@@ -774,6 +784,7 @@ function App() {
               openPlayer={openPlayer}
               openTeam={(team) => navigate("teams", { team })}
               openRole={openRole}
+              injuryState={injuryState}
             />
           ) : null}
           {view === "players" ? (
@@ -784,6 +795,8 @@ function App() {
               selected={selectedPlayer}
               setSelected={setSelectedPlayer}
               initialRole={listRole}
+              profile={profile}
+              apiBase={apiBase}
             />
           ) : null}
           {view === "teams" ? (
@@ -826,6 +839,7 @@ function App() {
               apiBase={apiBase}
               onPlayerListApplyStart={beginPlayerListUpdate}
               onPlayerListApplied={adoptPlayerListUpdate}
+              injuryState={injuryState}
             />
           ) : null}
           {view === "settings" ? (

@@ -30,6 +30,20 @@ from .generate import (
 from .freshness import dataset_configuration_hash, simulation_configuration_hash, source_fingerprints
 from .league_calendar import build_legacy_calendar_template, preprocess_legacy_calendar
 from .simulation import RosterValidationError
+from .injury_updates import (
+    FetchPage as InjuryFetchPage,
+    InjuryUpdateError,
+    check_updates as check_injury_updates,
+    fetch_page as fetch_injury_page,
+    stored_status as stored_injury_status,
+)
+from .fco_intelligence import (
+    FetchPage as FcoFetchPage,
+    FcoIntelligenceError,
+    check_updates as check_fco_intelligence,
+    fetch_page as fetch_fco_page,
+    stored_status as stored_fco_intelligence,
+)
 from .player_list_updates import (
     FetchPage as PlayerListFetchPage,
     PlayerListUpdateError,
@@ -40,9 +54,11 @@ from .player_list_updates import (
     persisted_or_inline_profile,
     profile_transaction,
     public_check,
+    read_player_list,
     season_slug,
     store_candidate,
 )
+from .player_identity import apply_safe_id_repairs
 from .sosfanta_updates import (
     FetchPage,
     SosFantaError,
@@ -60,6 +76,7 @@ from .sosfanta_set_piece_updates import (
 )
 from .sosfanta_formations_updates import (
     accept_latest as accept_latest_formations,
+    apply_safe_updates as apply_safe_formation_updates,
     build_bundle as build_formations_bundle,
     check_updates as check_formation_updates,
     stored_status as stored_formation_status,
@@ -128,6 +145,8 @@ class LocalApiServer(ThreadingHTTPServer):
         set_piece_fetcher: FetchPage = fetch_page,
         goalkeeper_fetcher: FetchPage = fetch_page,
         player_list_fetcher: PlayerListFetchPage = fetch_public_page,
+        injury_fetcher: InjuryFetchPage = fetch_injury_page,
+        fco_fetcher: FcoFetchPage = fetch_fco_page,
     ) -> None:
         self.profiles_dir = Path(profiles_dir)
         self.datasets_dir = Path(datasets_dir)
@@ -142,6 +161,8 @@ class LocalApiServer(ThreadingHTTPServer):
         self.set_piece_fetcher = set_piece_fetcher
         self.goalkeeper_fetcher = goalkeeper_fetcher
         self.player_list_fetcher = player_list_fetcher
+        self.injury_fetcher = injury_fetcher
+        self.fco_fetcher = fco_fetcher
         super().__init__(address, LocalApiHandler)
 
     def handle_error(self, request: Any, client_address: Any) -> None:
@@ -193,6 +214,18 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.NOT_FOUND, "not_found", "The requested endpoint does not exist.")
 
     def do_POST(self) -> None:
+        if self._path() == "/api/updates/fco/status":
+            self._fco_status()
+            return
+        if self._path() == "/api/updates/fco/check":
+            self._check_fco_updates()
+            return
+        if self._path() == "/api/updates/injuries/status":
+            self._injury_status()
+            return
+        if self._path() == "/api/updates/injuries/check":
+            self._check_injury_updates()
+            return
         if self._path() == "/api/updates/player-list/check":
             self._check_player_list_updates()
             return
@@ -225,6 +258,12 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             return
         if self._path() == "/api/updates/sosfanta-formations/bundle":
             self._formation_bundle()
+            return
+        if self._path() == "/api/updates/sosfanta-formations/apply":
+            self._apply_formation_updates()
+            return
+        if self._path() == "/api/updates/sosfanta-formations/repair-identities":
+            self._repair_formation_identities()
             return
         if self._path() == "/api/updates/sosfanta-goalkeepers/check":
             self._check_goalkeeper_updates()
@@ -631,6 +670,87 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             return
         self._send_json(HTTPStatus.OK, result)
 
+    def _injury_status(self) -> None:
+        request = self._injury_request()
+        if request is None:
+            return
+        profile = request
+        try:
+            result = stored_injury_status(
+                self.server.updates_dir,
+                profile.profile_id,
+                profile.season.season,
+            )
+        except InjuryUpdateError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "snapshot_unavailable", str(error))
+            return
+        self._send_json(HTTPStatus.OK, result)
+
+    def _fco_status(self) -> None:
+        profile = self._injury_request()
+        if profile is None:
+            return
+        try:
+            result = stored_fco_intelligence(self.server.updates_dir, profile)
+        except FcoIntelligenceError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "snapshot_unavailable", str(error))
+            return
+        self._send_json(HTTPStatus.OK, result)
+
+    def _check_fco_updates(self) -> None:
+        profile = self._injury_request()
+        if profile is None:
+            return
+        try:
+            result = check_fco_intelligence(
+                self.server.updates_dir,
+                profile,
+                self.server.fco_fetcher,
+                force=self.headers.get("X-Force-Refresh") == "true",
+            )
+        except FcoIntelligenceError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "fco_update_unavailable", str(error))
+            return
+        self._send_json(HTTPStatus.OK, result)
+
+    def _check_injury_updates(self) -> None:
+        profile = self._injury_request()
+        if profile is None:
+            return
+        try:
+            result = check_injury_updates(
+                self.server.updates_dir,
+                profile,
+                self.server.injury_fetcher,
+                force=self.headers.get("X-Force-Refresh") == "true",
+            )
+        except InjuryUpdateError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "injury_update_unavailable", str(error))
+            return
+        self._send_json(HTTPStatus.OK, result)
+
+    def _injury_request(self) -> Any | None:
+        request = self._update_request()
+        if request is None:
+            return None
+        requested = request[0]
+        try:
+            stored_path = self.server.profiles_dir / f"{requested.profile_id}.json"
+            if stored_path.is_file():
+                return resolve_profile(
+                    {"profile_id": requested.profile_id},
+                    self.server.profiles_dir,
+                    profile_loader=self.server.profile_loader,
+                )
+            value = json.loads(self.server.default_profile_path.read_text(encoding="utf-8"))
+            default = self.server.profile_loader(value)
+            if default.profile_id != requested.profile_id:
+                raise ProfileRequestError("The active profile must be saved before checking injuries.")
+            return default
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError, ProfileRequestError) as error:
+            self._error(HTTPStatus.BAD_REQUEST, "invalid_profile", str(error))
+            return None
+
     def _sosfanta_status(self) -> None:
         request = self._update_request()
         if request is None:
@@ -777,6 +897,58 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             "text/plain; charset=utf-8",
             f'sosfanta-formazioni-update-{season.replace("/", "-")}.txt',
         )
+
+    def _apply_formation_updates(self) -> None:
+        request = self._update_request()
+        if request is None:
+            return
+        profile, profile_id, season, content_hash, audit_hash = request
+        profile = self._derive_calendar_participants(profile)
+        paths = self._formation_source_paths(profile)
+        if paths is None:
+            return
+        try:
+            result = apply_safe_formation_updates(
+                self.server.updates_dir, profile_id, season, *paths, content_hash, audit_hash,
+                lambda: generate_dataset(profile, self.server.datasets_dir, generator=self.server.generator),
+            )
+        except SosFantaError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "update_unavailable", str(error))
+            return
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "generation_failed", "The safe formation update could not be completed.")
+            return
+        self._send_json(HTTPStatus.OK, result)
+
+    def _repair_formation_identities(self) -> None:
+        request = self._update_request()
+        if request is None:
+            return
+        profile, _, _, _, source_hash = request
+        profile = self._derive_calendar_participants(profile)
+        paths = self._formation_source_paths(profile)
+        if paths is None:
+            return
+        starters_path, listone_path = paths
+        original = starters_path.read_bytes()
+        try:
+            players, ceduti = read_player_list(listone_path)
+            result = apply_safe_id_repairs(starters_path, players, ceduti, source_hash)
+        except ValueError as error:
+            self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "update_unavailable", str(error))
+            return
+        try:
+            generate_dataset(profile, self.server.datasets_dir, generator=self.server.generator)
+        except Exception:
+            with tempfile.NamedTemporaryFile("wb", dir=starters_path.parent, delete=False) as handle:
+                handle.write(original)
+                rollback = Path(handle.name)
+            rollback.replace(starters_path)
+            traceback.print_exc(file=sys.stderr)
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "generation_failed", "The identity repair could not be completed.")
+            return
+        self._send_json(HTTPStatus.OK, result)
 
     def _check_goalkeeper_updates(self) -> None:
         request = self._update_request()
@@ -1037,7 +1209,7 @@ class LocalApiHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename, X-Force-Refresh")
         self.send_header("Content-Type", content_type)
         if filename:
             self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
@@ -1069,9 +1241,11 @@ def create_server(
     set_piece_fetcher: FetchPage = fetch_page,
     goalkeeper_fetcher: FetchPage = fetch_page,
     player_list_fetcher: PlayerListFetchPage = fetch_public_page,
+    injury_fetcher: InjuryFetchPage = fetch_injury_page,
+    fco_fetcher: FcoFetchPage = fetch_fco_page,
 ) -> LocalApiServer:
     """Create a local API server; inject a pipeline generator for tests or embedding."""
-    return LocalApiServer(address, profiles_dir=profiles_dir, datasets_dir=datasets_dir, uploads_dir=uploads_dir, updates_dir=updates_dir, default_profile_path=default_profile_path, generator=generator, simulator=simulator, profile_loader=profile_loader, update_fetcher=update_fetcher, formations_fetcher=formations_fetcher, set_piece_fetcher=set_piece_fetcher, goalkeeper_fetcher=goalkeeper_fetcher, player_list_fetcher=player_list_fetcher)
+    return LocalApiServer(address, profiles_dir=profiles_dir, datasets_dir=datasets_dir, uploads_dir=uploads_dir, updates_dir=updates_dir, default_profile_path=default_profile_path, generator=generator, simulator=simulator, profile_loader=profile_loader, update_fetcher=update_fetcher, formations_fetcher=formations_fetcher, set_piece_fetcher=set_piece_fetcher, goalkeeper_fetcher=goalkeeper_fetcher, player_list_fetcher=player_list_fetcher, injury_fetcher=injury_fetcher, fco_fetcher=fco_fetcher)
 
 
 def _simulate_current_dataset(profile: Any, output_dir: Path, iterations: int, seed: int, rosters: dict[str, list[int]] | None = None) -> dict[str, Any]:

@@ -6,19 +6,18 @@ import argparse
 import copy
 import re
 import tempfile
-import unicodedata
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from rapidfuzz import fuzz
 
 from .config import LeagueConfig, ModelConfig
 from .league_calendar import preprocess_legacy_calendar, validate_calendar
 from .league_profile import LeagueProfile
 from .freshness import dataset_configuration_hash, dataset_input_hash, source_fingerprints
+from .player_identity import load_identity_overrides, match_manual, normalize
 
 RAW = Path("data/raw")
 PROCESSED = Path("data/processed")
@@ -47,14 +46,6 @@ DAILY_PLAY_BOUNDS = (0.05, 0.95)
 DAILY_VOTE_BOUNDS = (4.0, 8.0)
 DAILY_BONUS_BOUNDS = (-1.5, 2.5)
 DAILY_STD_BOUNDS = (0.25, 1.5)
-
-
-def normalize(value: object) -> str:
-    value = unicodedata.normalize("NFKD", str(value).lower())
-    value = "".join(c for c in value if not unicodedata.combining(c))
-    # Preserve inner hyphens so compound surnames remain one token.
-    value = re.sub(r"[^a-z0-9\s-]", "", value)
-    return " ".join(value.split())
 
 
 def _require_columns(frame: pd.DataFrame, required: set[str], source: str) -> None:
@@ -226,83 +217,6 @@ def anonymize_public_calendar(calendar: dict) -> dict:
                 if field in fixture:
                     fixture[field] = replacement_ids.get(fixture[field], fixture[field])
     return public_calendar
-
-
-def load_identity_overrides(path: Path | None = None) -> dict[tuple[str, str, str], dict]:
-    path = path or PROJECT_ROOT / "config" / "identity_overrides.json"
-    if not path.exists():
-        return {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ValueError(f"invalid identity override archive {path}: {error}") from error
-    entries = payload.get("overrides", []) if isinstance(payload, dict) else payload
-    if not isinstance(entries, list):
-        raise ValueError("identity override archive must be a list or contain an overrides list")
-    result = {}
-    for entry in entries:
-        try:
-            key = (str(entry["source"]), normalize(entry["name"]), normalize(entry["team"]))
-            player_id = int(entry["id_fantacalcio"])
-        except (KeyError, TypeError, ValueError) as error:
-            raise ValueError(f"invalid identity override: {entry!r}") from error
-        if not all(key) or key in result:
-            raise ValueError(f"duplicate or incomplete identity override: {entry!r}")
-        result[key] = {"id_fantacalcio": player_id, "confirmed": bool(entry.get("confirmed", False))}
-    return result
-
-
-def _validate_override(entry: pd.Series, source: str, override: dict, listone: pd.DataFrame) -> int:
-    player_id = override["id_fantacalcio"]
-    candidate = listone[listone.Id == player_id]
-    if candidate.empty:
-        raise ValueError(f"identity override for {source}:{entry.nome} references unknown Fantacalcio ID {player_id}")
-    candidate = candidate.iloc[0]
-    matches = normalize(entry.nome) == normalize(candidate.Nome) and normalize(entry.squadra) == normalize(candidate.Squadra)
-    if not matches and not override["confirmed"]:
-        raise ValueError(f"identity override for {source}:{entry.nome} / {entry.squadra} does not match canonical ID {player_id}; set confirmed=true to acknowledge it")
-    return player_id
-
-
-def match_manual(manual: pd.DataFrame, listone: pd.DataFrame, source: str, overrides: dict[tuple[str, str, str], dict] | None = None) -> pd.DataFrame:
-    overrides = overrides or {}
-    rows = []
-    for _, entry in manual.iterrows():
-        override = overrides.get((source, normalize(entry.nome), normalize(entry.squadra)))
-        if override:
-            rows.append([entry.nome, entry.squadra, _validate_override(entry, source, override, listone), 100.0, "override", source, None])
-            continue
-        team = normalize(entry.squadra)
-        candidates = listone[listone.Squadra.map(normalize) == team]
-        given_id = pd.to_numeric(pd.Series([entry.get("id_fantacalcio")]), errors="coerce").iloc[0]
-        if pd.notna(given_id) and int(given_id) in set(listone.Id):
-            rows.append([entry.nome, entry.squadra, int(given_id), 100.0, "manuale", source, None])
-            continue
-        query = normalize(entry.nome)
-        best_id, score, best_ids = None, 0.0, []
-        surname_counts = candidates.Nome.map(lambda name: normalize(name).split()[0] if normalize(name) else "").value_counts()
-        for _, candidate in candidates.iterrows():
-            candidate_name = normalize(candidate.Nome)
-            parts = candidate_name.split()
-            aliases = [candidate_name]
-            query_aliases = [query]
-            # Listone names are usually "Surname F." while manual input is "First Surname".
-            if len(parts) == 2 and len(parts[1]) == 1:
-                aliases.append(f"{parts[1]} {parts[0]}")
-                if surname_counts.get(parts[0], 0) == 1:
-                    aliases.append(parts[0])
-            query_parts = query.split()
-            if len(query_parts) > 1:
-                query_aliases.append(f"{query_parts[0][0]} {' '.join(query_parts[1:])}")
-            current = max(fuzz.token_sort_ratio(left, right) for left in query_aliases for right in aliases)
-            if current > score:
-                best_id, score, best_ids = int(candidate.Id), float(current), [int(candidate.Id)]
-            elif current == score:
-                best_ids.append(int(candidate.Id))
-        method = "ambiguo" if score >= 90 and len(best_ids) > 1 else ("auto" if score >= 90 else "nessuno")
-        diagnostic = "multiple equally scored candidates" if method == "ambiguo" else ("no confident candidate" if method == "nessuno" else None)
-        rows.append([entry.nome, entry.squadra, best_id if method == "auto" else None, round(score, 1), method, source, diagnostic])
-    return pd.DataFrame(rows, columns=["nome_originale", "squadra", "id_matched", "score", "metodo", "source", "diagnostic"])
 
 
 def _history_weights(count: int, weights: tuple[float, ...]) -> tuple[float, ...]:

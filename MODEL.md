@@ -35,6 +35,9 @@ that season.
 - Only an explicit `confirmed_inactive` signal makes a player ineligible.
   `RISERVA`, `NON_CLASSIFICATO`, low probability, and missing editorial tiers
   reduce utility or confidence but are not hard exclusions.
+- Fantacalcio Online availability is a current, informational runtime overlay. It
+  does not set `confirmed_inactive` or modify projections, values, lineup
+  utility, simulations, or auction recommendations.
 
 ## Simulation
 

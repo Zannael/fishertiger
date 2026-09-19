@@ -42,7 +42,7 @@ export const sosFantaGoalkeepersUrl = () =>
 
 const updateRequest = async (provider, action, profile, {
   apiBase = "", fetchImpl = globalThis.fetch, contentHash = "", candidateHash = "",
-  profileHash = "", activeHash = "", startersHash = "", auditHash = "",
+  profileHash = "", activeHash = "", startersHash = "", auditHash = "", force = false,
 } = {}) => {
   if (typeof fetchImpl !== "function")
     throw new UpdateClientError("fetch_unavailable", "Fetch non disponibile.");
@@ -50,7 +50,7 @@ const updateRequest = async (provider, action, profile, {
   try {
     response = await fetchImpl(apiUrl(`/api/updates/${provider}/${action}`, apiBase), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(force ? { "X-Force-Refresh": "true" } : {}) },
       body: JSON.stringify({
         profile,
         content_hash: contentHash,
@@ -92,6 +92,8 @@ export const fetchSosFantaBundle = (profile, options) => updateRequest("sosfanta
 export const checkSosFantaFormations = (profile, options) => updateRequest("sosfanta-formations", "check", profile, options);
 export const getSosFantaFormationStatus = (profile, options) => updateRequest("sosfanta-formations", "status", profile, options);
 export const acceptSosFantaFormations = (profile, options) => updateRequest("sosfanta-formations", "accept", profile, options);
+export const applySosFantaFormations = (profile, options) => updateRequest("sosfanta-formations", "apply", profile, options);
+export const repairSosFantaFormationIdentities = (profile, options) => updateRequest("sosfanta-formations", "repair-identities", profile, options);
 export const fetchSosFantaFormationBundle = (profile, options) => updateRequest("sosfanta-formations", "bundle", profile, options);
 export const checkSosFantaSetPieces = (profile, options) => updateRequest("sosfanta-set-pieces", "check", profile, options);
 export const getSosFantaSetPieceStatus = (profile, options) => updateRequest("sosfanta-set-pieces", "status", profile, options);
@@ -119,6 +121,34 @@ export const checkPlayerList = (profile, options) => updateRequest("player-list"
 export const getPlayerListStatus = (profile, options) => updateRequest("player-list", "status", profile, options);
 export const applyPlayerList = (profile, candidateHash, profileHash, activeHash, startersHash, options = {}) =>
   updateRequest("player-list", "apply", profile, { ...options, candidateHash, profileHash, activeHash, startersHash });
+export const getInjuryStatus = (profile, options) => updateRequest("injuries", "status", profile, options);
+export const checkInjuries = (profile, options) => updateRequest("injuries", "check", profile, options);
+export const getFcoStatus = (profile, options) => updateRequest("fco", "status", profile, options);
+export const checkFco = (profile, options) => updateRequest("fco", "check", profile, options);
+
+export const checkAllUpdateSources = async (profile, options = {}) => {
+  const sources = [
+    ["SOS Guida", checkSosFanta], ["SOS Formazioni", checkSosFantaFormations],
+    ["SOS Piazzati", checkSosFantaSetPieces], ["Listone", checkPlayerList],
+    ["SOS Portieri", checkSosFantaGoalkeepers], ["Disponibilità FCO", checkInjuries],
+  ];
+  const settled = await Promise.allSettled(sources.map(([, check]) => check(profile, options)));
+  const rows = sources.map(([label], index) => ({ label, ...(settled[index].status === "fulfilled" ? { result: settled[index].value } : { error: settled[index].reason?.message || "Controllo non riuscito" }) }));
+  try {
+    const result = await checkFco(profile, options);
+    rows.push(
+      { label: "FCO Prestazioni", result: result.performance, error: result.errors?.performance },
+      { label: "FCO Mercato", result: result.market, error: result.errors?.market },
+      { label: "FCO Probabili", result: result.lineups, error: result.errors?.lineups },
+      { label: "FCO Indici", result: result.forecast, error: result.errors?.forecast },
+      { label: "FCO Contesto calendario", result: result.fixture_context, error: result.errors?.fixture_context },
+    );
+  } catch (error) {
+    for (const label of ["FCO Prestazioni", "FCO Mercato", "FCO Probabili", "FCO Indici", "FCO Contesto calendario"])
+      rows.push({ label, error: error?.message || "Controllo non riuscito" });
+  }
+  return rows;
+};
 
 export const uploadPlayerListCandidate = async (file, profile, { apiBase = "", fetchImpl = globalThis.fetch } = {}) => {
   const years = seasonParts(profile?.season?.season);

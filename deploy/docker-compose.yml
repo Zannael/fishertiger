@@ -14,6 +14,7 @@ services:
       - ../data/raw:/app/data/raw:ro
       - ../data/processed:/app/data/processed
       - ../data/uploads:/app/data/uploads
+      - ../data/updates:/app/data/updates
 
   web:
     build:
